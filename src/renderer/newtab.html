@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:" />
+  <title>New Tab — Plaza Browser</title>
+  <link rel="stylesheet" href="./src/newtab.css" />
+</head>
+<body>
+  <div class="newtab">
+    <div class="newtab-content">
+      <h1 class="newtab-logo">Plaza Browser</h1>
+      <div class="newtab-search">
+        <form id="search-form">
+          <input
+            id="search-input"
+            type="text"
+            placeholder="Search the web..."
+            autofocus
+            spellcheck="false"
+          />
+        </form>
+      </div>
+      <div class="newtab-links">
+        <a href="https://github.com" class="newtab-link">
+          <span class="newtab-link-icon">&#9900;</span>
+          <span>GitHub</span>
+        </a>
+        <a href="https://news.ycombinator.com" class="newtab-link">
+          <span class="newtab-link-icon">&#9881;</span>
+          <span>Hacker News</span>
+        </a>
+        <a href="https://developer.mozilla.org" class="newtab-link">
+          <span class="newtab-link-icon">&#9998;</span>
+          <span>MDN</span>
+        </a>
+        <a href="https://stackoverflow.com" class="newtab-link">
+          <span class="newtab-link-icon">&#10070;</span>
+          <span>Stack Overflow</span>
+        </a>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="./src/newtab.ts"></script>
+</body>
+</html>
