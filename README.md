@@ -4,7 +4,7 @@
 
 Plaza Browser is a high-performance, Electron-based web browser designed for power users who need advanced workspace and tab management. It serves as the base "codex" for the upcoming **ChatPlaza** project — a unified hub for multiple AI chat providers.
 
-![Plaza Browser Screenshot Placeholder](https://via.placeholder.com/1280x800.png?text=Plaza+Browser+UI)
+![Plaza Browser Screenshot](/media/plaza-browser.png)
 
 ## Key Features
 
