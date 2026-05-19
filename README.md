@@ -1,6 +1,7 @@
 # Plaza Browser
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![CI](https://github.com/Galang23/plaza-browser/actions/workflows/ci.yml/badge.svg)](https://github.com/Galang23/plaza-browser/actions/workflows/ci.yml)
 
 Plaza Browser is a high-performance, Electron-based web browser designed for power users who need advanced workspace and tab management. It serves as the base "codex" for the upcoming **ChatPlaza** project — a unified hub for multiple AI chat providers.
 
