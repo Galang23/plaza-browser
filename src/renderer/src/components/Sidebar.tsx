@@ -14,6 +14,7 @@ export function Sidebar() {
 
   const filteredTabs = tabs.filter((t) => t.groupId === activeGroupId)
   const workspace = workspaces.find((w) => w.id === activeGroupId)
+  const accentStyle = { ['--ws-accent' as string]: workspace?.color || 'var(--accent-primary)' }
 
   const handleNewTab = () => {
     window.electron.createTab('about:blank', activeGroupId, workspace?.userAgent || '')
@@ -105,7 +106,7 @@ export function Sidebar() {
 
   return (
     <>
-      <div className="sidebar" style={{ width: sidebarWidth, '--sidebar-width': `${sidebarWidth}px` } as React.CSSProperties}>
+      <div className="sidebar" style={{ width: sidebarWidth, '--sidebar-width': `${sidebarWidth}px`, ...accentStyle } as React.CSSProperties}>
         <div className="sidebar-header" onContextMenu={handleHeaderContextMenu}>
           <span className="sidebar-header-title">{workspace?.name || 'Tabs'}</span>
         </div>

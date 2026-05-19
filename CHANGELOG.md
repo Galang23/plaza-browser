@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [1.1.0] — 2026-05-19
+
+### Added
+- **Workspace personalization** — Emoji + accent color per workspace, persisted across sessions.
+- **Audible tab state** — Tabs now track when audio is playing for clearer UI status.
+- **Sidebar mute control** — Always-visible mute toggle for audible or muted tabs.
+
+### Changed
+- **UI polish** — Smooth transitions and active workspace accent applied to the sidebar and workspace strip.
+
+---
+
 ## [1.0.0] — 2026-05-19
 
 ### Initial Release

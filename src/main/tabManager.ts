@@ -15,6 +15,7 @@ interface Tab {
   userAgent: string
   isCrashed: boolean
   isUnresponsive: boolean
+  isCurrentlyAudible: boolean
 }
 
 interface ClosedTabInfo {
@@ -221,7 +222,8 @@ export class TabManager {
       favicon: '',
       userAgent,
       isCrashed: false,
-      isUnresponsive: false
+      isUnresponsive: false,
+      isCurrentlyAudible: false
     }
     this.tabs.set(id, tab)
 
@@ -329,7 +331,8 @@ export class TabManager {
       favicon: info.favicon,
       userAgent: info.userAgent,
       isCrashed: false,
-      isUnresponsive: false
+      isUnresponsive: false,
+      isCurrentlyAudible: false
     }
     this.tabs.set(restored.id, restored)
 
@@ -468,7 +471,8 @@ export class TabManager {
         favicon,
         userAgent,
         isCrashed: false,
-        isUnresponsive: false
+        isUnresponsive: false,
+        isCurrentlyAudible: false
       }
       this.tabs.set(tab.id, tab)
     }
@@ -574,6 +578,7 @@ export class TabManager {
       canGoForward: !!wc && !wc.isDestroyed() && wc.navigationHistory.canGoForward(),
       isLoading: !!wc && !wc.isDestroyed() && wc.isLoading(),
       isAudioMuted: !!wc && !wc.isDestroyed() && wc.audioMuted,
+      isCurrentlyAudible: tab.isCurrentlyAudible,
       isCrashed: tab.isCrashed,
       isUnresponsive: tab.isUnresponsive
     }
@@ -788,10 +793,21 @@ export class TabManager {
     wc.on('did-start-loading', () => {
       tab.isCrashed = false
       tab.isUnresponsive = false
+      tab.isCurrentlyAudible = false
       this.notifyRenderer()
     })
 
     wc.on('did-stop-loading', () => {
+      this.notifyRenderer()
+    })
+
+    wc.on('media-started-playing', () => {
+      tab.isCurrentlyAudible = true
+      this.notifyRenderer()
+    })
+
+    wc.on('media-paused', () => {
+      tab.isCurrentlyAudible = false
       this.notifyRenderer()
     })
 
@@ -809,6 +825,7 @@ export class TabManager {
       const didCrash = details.reason !== 'clean-exit'
       tab.isCrashed = didCrash
       tab.isUnresponsive = false
+      tab.isCurrentlyAudible = false
       if (didCrash && !tab.title) {
         tab.title = 'Tab Crashed'
       }
@@ -876,6 +893,7 @@ export class TabManager {
     tab.url = normalizeRuntimeUrl(resolvedUrl)
     tab.isCrashed = false
     tab.isUnresponsive = false
+    tab.isCurrentlyAudible = false
     view.webContents.loadURL(resolvedUrl)
     return true
   }

@@ -11,6 +11,8 @@ export function WorkspaceStrip() {
   const removeWorkspace = useStore((s) => s.removeWorkspace)
   const updateWorkspace = useStore((s) => s.updateWorkspace)
 
+  const activeWorkspace = workspaces.find((ws) => ws.id === activeGroupId)
+
   const [showInput, setShowInput] = useState(false)
   const [newName, setNewName] = useState('')
   const [settingsId, setSettingsId] = useState<string | null>(null)
@@ -67,8 +69,10 @@ export function WorkspaceStrip() {
     }
   }
 
+  const accentStyle = { ['--ws-accent' as string]: activeWorkspace?.color || 'var(--accent-primary)' }
+
   return (
-    <div className="workspace-strip">
+    <div className="workspace-strip" style={accentStyle}>
       {workspaces.map((ws) => (
         <div
           key={ws.id}
@@ -76,6 +80,7 @@ export function WorkspaceStrip() {
           onClick={() => setActiveGroupId(ws.id)}
           onContextMenu={(e) => handleContextMenu(e, ws.id)}
         >
+          {ws.emoji ? <span className="workspace-emoji">{ws.emoji}</span> : null}
           {renamingId === ws.id ? (
             <input
               className="workspace-input"

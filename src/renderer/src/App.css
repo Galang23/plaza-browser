@@ -83,7 +83,7 @@ body {
   white-space: nowrap;
   user-select: none;
   font-size: 12px;
-  transition: background 0.15s;
+  transition: background 0.2s ease-in-out, color 0.2s ease-in-out;
 }
 
 .workspace-tab:hover {
@@ -93,6 +93,12 @@ body {
 .workspace-tab.active {
   background: var(--bg-tertiary);
   color: var(--text-primary);
+  box-shadow: inset 0 -2px 0 0 var(--ws-accent, var(--accent-primary));
+}
+
+.workspace-emoji {
+  font-size: 14px;
+  line-height: 1;
 }
 
 .workspace-tab .gear-btn {
@@ -123,7 +129,7 @@ body {
   -webkit-app-region: no-drag;
   color: var(--text-secondary);
   font-size: 16px;
-  transition: background 0.15s;
+  transition: background 0.2s ease-in-out, color 0.2s ease-in-out;
 }
 
 .add-workspace-btn:hover {
@@ -163,7 +169,7 @@ body {
   cursor: pointer;
   color: var(--text-secondary);
   font-size: 14px;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.2s ease-in-out, color 0.2s ease-in-out;
   background: none;
   border: none;
 }
@@ -187,7 +193,7 @@ body {
   padding: 4px 10px;
   font-size: 13px;
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.2s ease-in-out;
 }
 
 .url-input:focus {
@@ -212,7 +218,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.2s ease-in-out, color 0.2s ease-in-out;
 }
 
 .win-btn:hover {
@@ -269,7 +275,7 @@ body {
   background: none;
   border: none;
   font-size: 16px;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.2s ease-in-out, color 0.2s ease-in-out;
 }
 
 .sidebar-new-tab-btn:hover {
@@ -287,7 +293,7 @@ body {
   color: var(--text-muted);
   font-size: 12px;
   gap: 4px;
-  transition: color 0.15s;
+  transition: color 0.2s ease-in-out;
 }
 
 .sidebar-empty:hover {
@@ -313,7 +319,7 @@ body {
   border-bottom: 1px solid var(--border-color);
   color: var(--text-muted);
   font-size: 12px;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.2s ease-in-out, color 0.2s ease-in-out;
 }
 
 .sidebar-new-tab-inline:hover {
@@ -333,7 +339,7 @@ body {
   cursor: col-resize;
   background: transparent;
   flex-shrink: 0;
-  transition: background 0.15s;
+  transition: background 0.2s ease-in-out;
 }
 
 .sidebar-resize-handle:hover {
@@ -348,7 +354,7 @@ body {
   cursor: pointer;
   border-bottom: 1px solid var(--border-color);
   border-left: 3px solid transparent;
-  transition: background 0.15s;
+  transition: background 0.2s ease-in-out;
   user-select: none;
 }
 
@@ -358,13 +364,38 @@ body {
 
 .sidebar-tab.active {
   background: var(--active-bg);
-  border-left-color: var(--accent-primary);
+  border-left-color: var(--ws-accent, var(--accent-primary));
 }
 
 .sidebar-tab .favicon {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
+}
+
+.sidebar-tab .audio-indicator {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  transition: background 0.2s ease-in-out, color 0.2s ease-in-out, opacity 0.2s ease-in-out;
+  cursor: pointer;
+  opacity: 0.95;
+  flex-shrink: 0;
+}
+
+.sidebar-tab .audio-indicator:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+.sidebar-tab .audio-indicator.audible {
+  color: var(--text-primary);
+  animation: pulse 1.4s ease-in-out infinite;
 }
 
 .sidebar-tab .title {
@@ -421,6 +452,11 @@ body {
   to { transform: rotate(360deg); }
 }
 
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.08); opacity: 1; }
+}
+
 .sidebar-tab .close-btn {
   width: 28px;
   align-self: stretch;
@@ -433,7 +469,7 @@ body {
   font-size: 14px;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.15s, background 0.15s;
+  transition: opacity 0.2s ease-in-out, background 0.2s ease-in-out;
 }
 
 .sidebar-tab:hover .close-btn {
@@ -554,6 +590,7 @@ body {
   font-size: 12px;
   outline: none;
   margin-bottom: 8px;
+  transition: border-color 0.2s ease-in-out;
 }
 
 .settings-popover input {
@@ -565,9 +602,32 @@ body {
   padding: 4px 8px;
   font-size: 12px;
   outline: none;
+  margin-bottom: 8px;
+}
+
+.settings-popover input[type="color"] {
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  cursor: pointer;
+  margin-bottom: 0;
+}
+
+.settings-popover input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.settings-popover input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 4px;
 }
 
 .settings-popover input:focus {
+  border-color: var(--accent-primary);
+}
+
+.settings-popover select:focus {
   border-color: var(--accent-primary);
 }
 

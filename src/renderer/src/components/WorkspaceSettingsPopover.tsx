@@ -51,6 +51,14 @@ export function WorkspaceSettingsPopover({ workspaceId, onClose }: Props) {
     updateWorkspace(workspaceId, { userAgent: e.target.value })
   }
 
+  const handleEmojiChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    updateWorkspace(workspaceId, { emoji: e.target.value })
+  }
+
+  const handleColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    updateWorkspace(workspaceId, { color: e.target.value })
+  }
+
   return (
     <div
       ref={popoverRef}
@@ -58,6 +66,18 @@ export function WorkspaceSettingsPopover({ workspaceId, onClose }: Props) {
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
     >
+      <label>Emoji</label>
+      <input
+        value={workspace.emoji || ''}
+        onChange={handleEmojiChange}
+        placeholder="Add an emoji..."
+      />
+      <label>Accent Color</label>
+      <input
+        type="color"
+        value={workspace.color || '#e94560'}
+        onChange={handleColorChange}
+      />
       <label>User Agent</label>
       <select value={currentPreset} onChange={handlePresetChange}>
         <option value="default">Default</option>

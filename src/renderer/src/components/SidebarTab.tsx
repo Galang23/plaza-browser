@@ -86,12 +86,27 @@ export function SidebarTab({ tabId }: { tabId: string }) {
     }
   }
 
+  const showAudioState = tab.isAudioMuted || tab.isCurrentlyAudible
+  const audioIcon = tab.isAudioMuted ? '🔇' : '🔊'
+
   return (
     <div
       className={`sidebar-tab ${isActive ? 'active' : ''} ${tab.isCrashed ? 'is-crashed' : ''} ${tab.isUnresponsive ? 'is-unresponsive' : ''}`}
       onClick={handleClick}
       onContextMenu={handleContextMenu}
     >
+      {showAudioState ? (
+        <span
+          className={`audio-indicator ${tab.isCurrentlyAudible && !tab.isAudioMuted ? 'audible' : ''}`}
+          onClick={(e) => {
+            e.stopPropagation()
+            window.electron.muteToggle(tab.id)
+          }}
+          title={tab.isAudioMuted ? 'Unmute tab' : 'Mute tab'}
+        >
+          {audioIcon}
+        </span>
+      ) : null}
       {tab.favicon ? (
         <img className="favicon" src={tab.favicon} alt="" />
       ) : (

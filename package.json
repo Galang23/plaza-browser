@@ -1,6 +1,6 @@
 {
   "name": "plaza-browser",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Electron-based browser with hierarchical workspace and tab management",
   "main": "./out/main/index.js",
   "author": "Galang23",

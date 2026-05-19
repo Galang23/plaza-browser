@@ -8,6 +8,7 @@ export interface TabInfo {
   canGoForward: boolean
   isLoading: boolean
   isAudioMuted: boolean
+  isCurrentlyAudible: boolean
   isCrashed: boolean
   isUnresponsive: boolean
 }
@@ -16,6 +17,8 @@ export interface Workspace {
   id: string
   name: string
   userAgent: string
+  emoji?: string
+  color?: string
 }
 
 export interface DownloadInfo {

@@ -123,7 +123,9 @@ function normalizeWorkspaces(workspaces: any[]): any[] {
     normalized.push({
       id: workspace.id,
       name: workspace.name.trim().slice(0, 80) || 'Workspace',
-      userAgent: normalizeUserAgent(workspace.userAgent)
+      userAgent: normalizeUserAgent(workspace.userAgent),
+      emoji: typeof workspace.emoji === 'string' ? workspace.emoji.slice(0, 8) : '',
+      color: typeof workspace.color === 'string' ? workspace.color.slice(0, 16) : ''
     })
   }
   return normalized.length > 0 ? normalized : cachedWorkspaces

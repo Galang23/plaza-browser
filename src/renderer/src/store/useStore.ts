@@ -45,8 +45,8 @@ interface AppState {
 export const useStore = create<AppState>()((set, get) => ({
   tabs: [],
   workspaces: [
-    { id: 'default', name: 'Default', userAgent: '' },
-    { id: 'work', name: 'Work', userAgent: '' }
+    { id: 'default', name: 'Default', userAgent: '', emoji: '', color: '' },
+    { id: 'work', name: 'Work', userAgent: '', emoji: '', color: '' }
   ],
   activeTabId: null,
   activeGroupId: 'default',
@@ -87,7 +87,7 @@ export const useStore = create<AppState>()((set, get) => ({
   },
   addWorkspace: (name) =>
     set((state) => {
-      const updated = [...state.workspaces, { id: crypto.randomUUID(), name, userAgent: '' }]
+      const updated = [...state.workspaces, { id: crypto.randomUUID(), name, userAgent: '', emoji: '', color: '' }]
       window.electron.syncWorkspaces(updated, state.activeGroupId)
       return { workspaces: updated }
     }),
@@ -138,7 +138,13 @@ export const useStore = create<AppState>()((set, get) => ({
 
   hydrateFromSession: (data) =>
     set({
-      workspaces: data.workspaces.length > 0 ? data.workspaces : get().workspaces,
+      workspaces: data.workspaces.length > 0
+        ? data.workspaces.map((workspace) => ({
+          ...workspace,
+          emoji: workspace.emoji || '',
+          color: workspace.color || ''
+        }))
+        : get().workspaces,
       activeGroupId: data.activeGroupId || 'default',
       activeTabPerWorkspace: data.activeTabPerWorkspace || {},
       sidebarWidth: data.sidebarWidth || 250
