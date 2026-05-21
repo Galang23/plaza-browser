@@ -3,7 +3,7 @@
   "version": "1.1.0",
   "description": "Electron-based browser with hierarchical workspace and tab management",
   "main": "./out/main/index.js",
-  "author": "Galang23",
+  "author": "Galang23 <Galang23@users.noreply.github.com>",
   "license": "MIT",
   "scripts": {
     "dev": "electron-vite dev",
