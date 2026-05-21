@@ -161,18 +161,6 @@ export function AddressBar() {
         placeholder="Search or enter URL..."
         spellCheck={false}
       />
-
-      <div className="window-controls">
-        <button className="win-btn minimize" onClick={() => window.electron.minimize()} title="Minimize">
-          <svg width="10" height="10" viewBox="0 0 10 10"><rect y="5" width="10" height="1.5" fill="currentColor"/></svg>
-        </button>
-        <button className="win-btn maximize" onClick={() => window.electron.maximize()} title="Maximize">
-          <svg width="10" height="10" viewBox="0 0 10 10"><rect x="1" y="1" width="8" height="8" fill="none" stroke="currentColor" strokeWidth="1.5"/></svg>
-        </button>
-        <button className="win-btn close" onClick={() => window.electron.close()} title="Close">
-          <svg width="10" height="10" viewBox="0 0 10 10"><line x1="1" y1="1" x2="9" y2="9" stroke="currentColor" strokeWidth="1.5"/><line x1="9" y1="1" x2="1" y2="9" stroke="currentColor" strokeWidth="1.5"/></svg>
-        </button>
-      </div>
     </div>
   )
 }

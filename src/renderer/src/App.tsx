@@ -176,6 +176,14 @@ export default function App() {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [handleKeyDown])
 
+  useEffect(() => {
+    const handlePointerDown = () => {
+      window.electron.hidePopover()
+    }
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => document.removeEventListener('pointerdown', handlePointerDown)
+  }, [])
+
   return (
     <div className="app">
       <div className="top-bar">

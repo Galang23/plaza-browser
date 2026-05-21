@@ -41,6 +41,11 @@ interface ElectronAPI {
     disabled?: boolean
     shortcut?: string
   }>, x: number, y: number): Promise<string | null>
+  showPopover(workspaceId: string, anchor: { x: number; y: number }): Promise<void>
+  hidePopover(): Promise<void>
+  getPopoverWorkspace(workspaceId: string): Promise<Workspace | null>
+  updatePopoverWorkspace(workspaceId: string, updates: Partial<Workspace>): Promise<void>
+  notifyPopoverReady(size: { width: number; height: number }): Promise<void>
   onTabsUpdated(cb: (data: { tabs: TabInfo[]; activeTabId: string | null }) => void): () => void
   onFindResult(cb: (result: { activeMatchOrdinal: number; matches: number }) => void): () => void
   onDownloadsUpdated(cb: (list: DownloadInfo[]) => void): () => void

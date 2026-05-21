@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
 import { useStore } from '../store/useStore'
-import { WorkspaceSettingsPopover } from './WorkspaceSettingsPopover'
 import { separator, showNativeContextMenu } from '../utils/nativeContextMenu'
 
 export function WorkspaceStrip() {
@@ -15,7 +14,6 @@ export function WorkspaceStrip() {
 
   const [showInput, setShowInput] = useState(false)
   const [newName, setNewName] = useState('')
-  const [settingsId, setSettingsId] = useState<string | null>(null)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -71,6 +69,16 @@ export function WorkspaceStrip() {
 
   const accentStyle = { ['--ws-accent' as string]: activeWorkspace?.color || 'var(--accent-primary)' }
 
+  const handleShowPopover = (workspaceId: string, target: HTMLElement) => {
+    const tabEl = target.closest('.workspace-tab') as HTMLElement | null
+    const rect = (tabEl || target).getBoundingClientRect()
+    const anchor = {
+      x: Math.round(rect.left),
+      y: Math.round(rect.bottom + 4)
+    }
+    window.electron.showPopover(workspaceId, anchor)
+  }
+
   return (
     <div className="workspace-strip" style={accentStyle}>
       {workspaces.map((ws) => (
@@ -109,17 +117,13 @@ export function WorkspaceStrip() {
             className="gear-btn"
             onClick={(e) => {
               e.stopPropagation()
-              setSettingsId(settingsId === ws.id ? null : ws.id)
+              const target = e.currentTarget as HTMLElement
+              handleShowPopover(ws.id, target)
             }}
+            onMouseDown={(e) => e.stopPropagation()}
           >
             &#9881;
           </span>
-          {settingsId === ws.id && (
-            <WorkspaceSettingsPopover
-              workspaceId={ws.id}
-              onClose={() => setSettingsId(null)}
-            />
-          )}
         </div>
       ))}
       {showInput ? (
@@ -136,6 +140,17 @@ export function WorkspaceStrip() {
           +
         </div>
       )}
+      <div className="window-controls">
+        <button className="win-btn minimize" onClick={() => window.electron.minimize()} title="Minimize">
+          <svg width="10" height="10" viewBox="0 0 10 10"><rect y="5" width="10" height="1.5" fill="currentColor"/></svg>
+        </button>
+        <button className="win-btn maximize" onClick={() => window.electron.maximize()} title="Maximize">
+          <svg width="10" height="10" viewBox="0 0 10 10"><rect x="1" y="1" width="8" height="8" fill="none" stroke="currentColor" strokeWidth="1.5"/></svg>
+        </button>
+        <button className="win-btn close" onClick={() => window.electron.close()} title="Close">
+          <svg width="10" height="10" viewBox="0 0 10 10"><line x1="1" y1="1" x2="9" y2="9" stroke="currentColor" strokeWidth="1.5"/><line x1="9" y1="1" x2="1" y2="9" stroke="currentColor" strokeWidth="1.5"/></svg>
+        </button>
+      </div>
     </div>
   )
 }

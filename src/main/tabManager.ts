@@ -150,6 +150,10 @@ export class TabManager {
     this.rendererUrl = url
   }
 
+  getRendererUrl(): string {
+    return this.rendererUrl
+  }
+
   getActiveTabPerWorkspaceSnapshot(): Record<string, string | null> {
     return Object.fromEntries(this.activeTabPerWorkspace.entries())
   }
@@ -559,6 +563,11 @@ export class TabManager {
     if (!this.rendererNotifier) return
     const tabs: TabInfo[] = Array.from(this.tabs.values()).map(t => this.tabToInfo(t))
     this.rendererNotifier({ tabs, activeTabId: this.activeTabId })
+  }
+
+  getActiveWebContents(): Electron.WebContents | null {
+    const tab = this.getActiveTab()
+    return tab?.view?.webContents ?? null
   }
 
   private getActiveTab(): Tab | undefined {

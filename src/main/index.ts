@@ -1,11 +1,18 @@
 import { app, BaseWindow, WebContentsView, ipcMain, dialog, Menu } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import { join } from 'path'
+import { pathToFileURL } from 'url'
 import { readFileSync, writeFileSync, mkdirSync } from 'fs'
 import { TabManager, type SessionData } from './tabManager'
 import { startDownloadTracking, getDownloads, onDownloadsUpdated, offDownloadsUpdated } from './downloadManager'
 
 let uiView: WebContentsView
+let popoverView: WebContentsView | null = null
+let popoverVisible = false
+let popoverAnchor: { x: number; y: number } | null = null
+let popoverSize: { width: number; height: number } | null = null
+let popoverWorkspaceId: string | null = null
+let tabInputCleanup: (() => void) | null = null
 let sessionSavedDuringWindowClose = false
 
 const tabManager = new TabManager()
@@ -131,6 +138,16 @@ function normalizeWorkspaces(workspaces: any[]): any[] {
   return normalized.length > 0 ? normalized : cachedWorkspaces
 }
 
+function sanitizeWorkspaceUpdates(updates: any) {
+  if (!updates || typeof updates !== 'object') return {}
+  const next: { emoji?: string; color?: string; userAgent?: string; name?: string } = {}
+  if (typeof updates.emoji === 'string') next.emoji = updates.emoji.slice(0, 8)
+  if (typeof updates.color === 'string') next.color = updates.color.slice(0, 16)
+  if (typeof updates.userAgent === 'string') next.userAgent = normalizeUserAgent(updates.userAgent)
+  if (typeof updates.name === 'string') next.name = updates.name.trim().slice(0, 80) || 'Workspace'
+  return next
+}
+
 interface NativeContextMenuItem {
   id?: string
   label?: string
@@ -200,11 +217,26 @@ function createWindow(): void {
     uiView.webContents.loadFile(join(__dirname, '../renderer/index.html'))
   }
 
+  popoverView = new WebContentsView({
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  })
+  popoverView.setVisible(false)
+  win.contentView.addChildView(popoverView)
+  popoverView.setBackgroundColor('#00000000')
+
   win.show()
 
   win.on('resize', () => {
     const bounds = win.getContentBounds()
     uiView.setBounds({ x: 0, y: 0, width: bounds.width, height: bounds.height })
+    if (popoverVisible && popoverView && popoverAnchor && popoverSize) {
+      const adjusted = clampPopoverBounds(bounds, popoverAnchor, popoverSize)
+      popoverView.setBounds(adjusted)
+    }
   })
 
   const cleanupIPC = setupIPC(win)
@@ -217,6 +249,7 @@ function createWindow(): void {
     sessionSavedDuringWindowClose = true
     cleanupIPC()
     tabManager.closeAllTabs()
+    popoverView = null
   }
 
   win.on('close', () => {
@@ -244,6 +277,67 @@ function createWindow(): void {
   })
 }
 
+function clampPopoverBounds(
+  windowBounds: { width: number; height: number },
+  anchor: { x: number; y: number },
+  size: { width: number; height: number }
+) {
+  const padding = 8
+  const width = Math.min(size.width, windowBounds.width - padding * 2)
+  const height = Math.min(size.height, windowBounds.height - padding * 2)
+  const maxX = windowBounds.width - width - padding
+  const maxY = windowBounds.height - height - padding
+  const x = Math.max(padding, Math.min(anchor.x, maxX))
+  const y = Math.max(padding, Math.min(anchor.y, maxY))
+  return { x, y, width, height }
+}
+
+function resolvePopoverUrl(): string {
+  const baseUrl = tabManager.getRendererUrl()
+  if (baseUrl) {
+    return new URL('popover.html', baseUrl).toString()
+  }
+  return pathToFileURL(join(__dirname, '../renderer/popover.html')).toString()
+}
+
+function hidePopover(): void {
+  popoverVisible = false
+  popoverAnchor = null
+  popoverSize = null
+  popoverWorkspaceId = null
+  tabInputCleanup?.()
+  tabInputCleanup = null
+  if (popoverView && !popoverView.webContents.isDestroyed()) {
+    popoverView.setVisible(false)
+  }
+}
+
+function bringPopoverToFront(win: BaseWindow): void {
+  if (!popoverView || popoverView.webContents.isDestroyed()) return
+  if (win.contentView.children.includes(popoverView)) {
+    win.contentView.removeChildView(popoverView)
+  }
+  win.contentView.addChildView(popoverView)
+}
+
+function setupTabInputListener(): void {
+  tabInputCleanup?.()
+  tabInputCleanup = null
+  const wc = tabManager.getActiveWebContents()
+  if (!wc || wc.isDestroyed()) return
+  const handler = (_event: any, inputEvent: any) => {
+    if (inputEvent.type === 'mouseDown' && popoverVisible) {
+      hidePopover()
+    }
+  }
+  wc.on('input-event', handler)
+  tabInputCleanup = () => {
+    if (!wc.isDestroyed()) {
+      wc.removeListener('input-event', handler)
+    }
+  }
+}
+
 function setupIPC(win: BaseWindow): () => void {
   const handle = (channel: string, handler: (...args: any[]) => any) => {
     ipcMain.removeHandler(channel)
@@ -269,15 +363,22 @@ function setupIPC(win: BaseWindow): () => void {
 
   handle('tab:create', (url: string, groupId: string, userAgent: string) => {
     const safeUrl = canLoadUrl(url) ? url.trim() : 'about:blank'
-    return tabManager.createTab(safeUrl, normalizeWorkspaceId(groupId), normalizeUserAgent(userAgent))
+    const result = tabManager.createTab(safeUrl, normalizeWorkspaceId(groupId), normalizeUserAgent(userAgent))
+    if (popoverVisible) bringPopoverToFront(win)
+    return result
   })
 
   handle('tab:switch', (id: string) => {
     tabManager.switchTab(id)
+    if (popoverVisible) {
+      bringPopoverToFront(win)
+      setupTabInputListener()
+    }
   })
 
   handle('tab:close', (id: string) => {
     tabManager.closeTab(id)
+    if (popoverVisible) bringPopoverToFront(win)
   })
 
   handle('tab:restore-closed', () => {
@@ -359,6 +460,59 @@ function setupIPC(win: BaseWindow): () => void {
 
   handle('context-menu:show', (items: NativeContextMenuItem[], x: number, y: number) => {
     return showNativeContextMenu(items, x, y)
+  })
+
+  handle('popover:show', (workspaceId: string, anchor: { x: number; y: number }) => {
+    if (!popoverView || !anchor || !Number.isFinite(anchor.x) || !Number.isFinite(anchor.y)) return
+    const workspace = cachedWorkspaces.find((ws) => ws.id === workspaceId)
+    if (!workspace) return
+    if (popoverVisible && popoverWorkspaceId === workspaceId) {
+      hidePopover()
+      return
+    }
+    popoverAnchor = { x: Math.round(anchor.x), y: Math.round(anchor.y) }
+    popoverSize = null
+    popoverWorkspaceId = workspaceId
+    bringPopoverToFront(win)
+    const fallbackSize = { width: 240, height: 220 }
+    const bounds = win.getContentBounds()
+    popoverView.setBounds(clampPopoverBounds(bounds, popoverAnchor, fallbackSize))
+    popoverView.setVisible(true)
+    const popoverUrl = resolvePopoverUrl()
+    const url = new URL(popoverUrl)
+    url.searchParams.set('workspaceId', workspaceId)
+    popoverView.webContents.loadURL(url.toString())
+    popoverVisible = true
+  })
+
+  handle('popover:ready', (size: { width: number; height: number }) => {
+    if (!popoverView || !popoverAnchor) return
+    if (!size || !Number.isFinite(size.width) || !Number.isFinite(size.height)) return
+    const bounds = win.getContentBounds()
+    popoverSize = { width: Math.round(size.width), height: Math.round(size.height) }
+    const adjusted = clampPopoverBounds(bounds, popoverAnchor, popoverSize)
+    popoverView.setBounds(adjusted)
+    popoverView.webContents.focus()
+    setupTabInputListener()
+  })
+
+  handle('popover:hide', () => {
+    hidePopover()
+  })
+
+  handle('popover:get-workspace', (workspaceId: string) => {
+    if (popoverWorkspaceId && popoverWorkspaceId !== workspaceId) return null
+    const ws = cachedWorkspaces.find((workspace) => workspace.id === workspaceId)
+    return ws || null
+  })
+
+  handle('popover:update-workspace', (workspaceId: string, updates: any) => {
+    if (popoverWorkspaceId && popoverWorkspaceId !== workspaceId) return
+    const ws = cachedWorkspaces.find((workspace) => workspace.id === workspaceId)
+    if (!ws) return
+    const sanitized = sanitizeWorkspaceUpdates(updates)
+    Object.assign(ws, sanitized)
+    sendToRenderer('session:restore', getSessionRestorePayload())
   })
 
   tabManager.setSavePageAsHandler(savePageAs)

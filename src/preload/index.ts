@@ -121,7 +121,22 @@ const api = {
     const handler = (_event: any, data: any) => cb(data)
     ipcRenderer.on('session:restore', handler)
     return () => ipcRenderer.removeListener('session:restore', handler)
-  }
+  },
+
+  showPopover: (workspaceId: string, anchor: { x: number; y: number }): Promise<void> =>
+    ipcRenderer.invoke('popover:show', workspaceId, anchor),
+
+  hidePopover: (): Promise<void> =>
+    ipcRenderer.invoke('popover:hide'),
+
+  getPopoverWorkspace: (workspaceId: string): Promise<Workspace | null> =>
+    ipcRenderer.invoke('popover:get-workspace', workspaceId),
+
+  updatePopoverWorkspace: (workspaceId: string, updates: Partial<Workspace>): Promise<void> =>
+    ipcRenderer.invoke('popover:update-workspace', workspaceId, updates),
+
+  notifyPopoverReady: (size: { width: number; height: number }): Promise<void> =>
+    ipcRenderer.invoke('popover:ready', size)
 }
 
 contextBridge.exposeInMainWorld('electron', api)

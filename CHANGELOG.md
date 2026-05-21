@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [1.2.0] — 2026-05-22
+
+### Added
+- **Overlay workspace settings popover** — Dedicated `WebContentsView` on top of all views,
+  eliminating occlusion by tab content. Triggered via gear icon per workspace.
+
+### Changed
+- **Window controls** — Minimize/maximize/close buttons moved from AddressBar to WorkspaceStrip.
+
+---
+
 ## [1.1.0] — 2026-05-19
 
 ### Added
