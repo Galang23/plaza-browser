@@ -6,7 +6,7 @@ on:
       - 'v*'
 
 jobs:
-  release:
+  build:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
@@ -27,11 +27,8 @@ jobs:
       - name: Build
         run: bun run build
 
-      - name: Release
-        shell: bash
+      - name: Package
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Disable code signing since we don't have certificates
           CSC_IDENTITY_AUTO_DISCOVERY: false
         run: |
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
@@ -42,15 +39,29 @@ jobs:
             bun x electron-builder --linux --publish never
           fi
 
-      - name: Upload Release Assets
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-${{ matrix.os }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: artifacts-*
+          merge-multiple: true
+          path: dist
+
+      - name: Create Release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
         with:
           draft: true
-          files: |
-            dist/*.AppImage
-            dist/*.deb
-            dist/*.dmg
-            dist/*.zip
-            dist/*.exe
-            dist/*.blockmap
+          files: dist/*
