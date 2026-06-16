@@ -3,6 +3,17 @@
 ## Project Overview
 Plaza Browser — Electron-based browser with hierarchical workspace + tab management. Version 1.2.1. See @package.json for available scripts. This is the base engine that powers the downstream `chat-plaza` project.
 
+## Vision (re-check periodically)
+
+- **Role:** Plaza is the Electron engine for the downstream `chat-plaza` product — strictly upstream, not a standalone browser competing for market share.
+- **What it solves:** Workspace organization for knowledge workers (and end users of chat-plaza). The workspace strip is the defining first impression.
+- **What earns its place:** Workspaces, split view, tab folders — the structural/organizational features. Everything else is a candidate for the parking lot.
+- **Pace:** There is an ambitious roadmap (v4 proposals), but actual coding is impulsive — ideas land as they come, fixes ship fast when something breaks. The real tension to watch is "ambitious roadmap" vs. "ship impulsive ideas fast."
+- **Differentiation:** Not chasing it. Not trying to be Brave or Arc. Plaza is "unabashedly a Chrome clone" (it is, via Electron) but only ships features that earn their place by solving a real problem.
+- **Anti-vision:** No feature bloat. No vendor lock. No browser-parity chasing.
+- **What the assistant should do:** Periodically re-check this vision with the user, and help them stay focused when impulsive work drifts away from it.
+- **Open threads (no decision needed yet):** Multi-window (v2.0.0), sync, mobile.
+
 ## Package Manager
 - **Always use `bun`** — `bun install`, `bun run dev`, `bun run build`
 
@@ -27,7 +38,7 @@ Plaza follows [SemVer](https://semver.org/) with the conventions used by VS Code
 
 ### Checkpoint tags
 
-Not every release ships user-visible code changes. A "checkpoint tag" marks a moment in the project's history (e.g. adopting a proposal) without changing the code state. v1.3.0 is a checkpoint tag: code remains at v1.2.1, but the v4 enhancement proposal is adopted as the official roadmap.
+Not every release ships user-visible code changes. A "checkpoint tag" marks a moment in the project's history (e.g. adopting a proposal) without changing the code state. v1.3.0 is a checkpoint tag: code remains at v1.2.1, but the v4 enhancement proposal is adopted as the official roadmap. **v1.3.1** is the first patch on this checkpoint line and ships the Phase 0 scaffold (`about:settings`, `about:reading-list`, `about:about` routes + HTML/React stubs).
 
 ### Versioning checklist for releases
 
@@ -83,6 +94,14 @@ Each v4 feature in `docs/plaza-browser-feature-enhancement-proposals-v4.md` carr
 - `sidebarWidth = 250px` (clamped 60–500), `topBarHeight = 90px`, `RESIZE_HANDLE_WIDTH = 16`
 - Active tab view positioned at `(sidebarWidth + 16, topBarHeight)` — fills remaining area
 - Resize recalculates bounds via `TabManager.updateBounds()`
+
+### Internal Routes (`about:` scheme)
+- **Canonical scheme for Plaza-controlled pages.** `canLoadUrl` (`src/main/index.ts`) and `tabManager.canOpenUrlInTab` / `canRestoreUrl` allow `about:`, but the address bar only routes recognized `about:` names to a real page.
+- **Routes (defined in `INTERNAL_ABOUT_ROUTES` at `src/main/tabManager.ts:67`):** `about:settings`, `about:reading-list`, `about:about`. `about:blank` is the implicit default (new tab).
+- **Resolution pattern:** `TabManager.resolveInternalPageUrl(route, params)` (`tabManager.ts`) returns the dev-server URL in development and the `file://` URL in production. Mirrors `resolveNewTabUrl` exactly. Query params are runtime-only; they are stripped on save to `session.json` via `normalizeNewTabUrlForStorage`.
+- **Display in the address bar:** `normalizeRuntimeUrl` converts the resolved `file://` / dev URL back to the canonical `about:<name>` form. Tabs persist their `about:` form, not the file path, in `session.json` via `normalizeRestoredUrl`.
+- **HTML scaffolds** live next to `newtab.html` and `popover.html` at `src/renderer/`: `settings.html`, `about.html`, `reading-list.html`. Each is registered as a vite `input` entry in `electron.vite.config.ts`. Each has a CSP matching the existing pages (`default-src 'self'; ... img-src ... media:;`) and loads a React entry from `src/renderer/src/<route>/main.tsx`.
+- **Shared stub component:** `src/renderer/src/shared/InternalPageStub.tsx` — a minimal title + route + message display used by the three scaffolds until the real v1.4.0 sections land.
 
 ### New Tab Home Page
 - `newtab.html` — React-based home page. Uses `@dnd-kit` for drag-and-drop reordering of shortcut cards.
