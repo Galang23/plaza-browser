@@ -13,6 +13,32 @@ Plaza Browser — Electron-based browser with hierarchical workspace + tab manag
 - **NEVER add comments to code unless explicitly requested**
 - Prefer updating the engine first before propagating changes to the downstream chat-plaza project
 
+## Versioning
+
+Plaza follows [SemVer](https://semver.org/) with the conventions used by VS Code, Discord, Slack, Obsidian, and Brave (research: industry consensus is to keep the major segment static for years and reserve it for true breaking changes).
+
+| Bump | Triggered by | Examples |
+| :-- | :-- | :-- |
+| **Major (X.0.0)** | Breaking changes to the public surface or persistent state. | `session.json` schema migration (e.g. multi-window adds a `windows: WindowState[]` field). IPC channel renamed or removed. Preload API shape change (downstream `chat-plaza` would break). `TabManager` refactor from singleton to per-window instances. Cut as **v2.0.0**. |
+| **Minor (1.X.0)** | Additive features that don't break existing state. | New features from the v4 proposal landing per phase. New IPC channels. New `Workspace` or `TabInfo` fields with safe defaults (existing `session.json` files load unchanged). Content blocker on/off (opt-in). New right-side panels. |
+| **Patch (1.2.X)** | Bug fixes only. | Bug fixes, CVE patches, favicon disk-cache cleanup, UI polish, renderer hardening. |
+
+### Checkpoint tags
+
+Not every release ships user-visible code changes. A "checkpoint tag" marks a moment in the project's history (e.g. adopting a proposal) without changing the code state. v1.3.0 is a checkpoint tag: code remains at v1.2.1, but the v4 enhancement proposal is adopted as the official roadmap.
+
+### Versioning checklist for releases
+
+Before bumping, run through this list:
+
+1. Does the change alter any field's type, name, or presence in `session.json`? → **major** (write a migration in `tabManager.normalizeWorkspaces` and friends).
+2. Does it remove or rename an IPC channel, an `ElectronAPI` method, or a preload export? → **major** (downstream `chat-plaza` could break).
+3. Does it refactor a singleton into a per-instance model (e.g. `tabManager` → per-window)? → **major**.
+4. Otherwise, does it add a new feature, panel, IPC channel, or workspace field with a safe default? → **minor**.
+5. Otherwise (bug fix, polish, security patch with no API change) → **patch**.
+
+When in doubt, prefer the **lower** bump. The major segment is meant to be rare and meaningful; community trust erodes if it bumps for cosmetic reasons.
+
 ## Architecture Notes
 
 ### Process Model
