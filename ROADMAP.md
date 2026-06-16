@@ -68,14 +68,17 @@ Full per-feature version table lives in `AGENTS.md` §Versioning.
 
 ### Now (active work)
 
-- **§16 Secret-storage wrapper** — `src/main/secretStorage.ts`. Generic, opt-in per consumer. No plaintext ever. Foundation for any future API-key feature.
+- **§12 Reading list** — IPC channels + `readingList` array in `session.json` + page context menu action. Add **Save to Reading List** to the page context menu in `tabManager.ts` → `Menu.buildFromTemplate`.
 
 ### Next (queued, unstarted)
 
-- **§13 Crash recovery** — `cleanExit` flag in `session.json` + `RestoreBanner.tsx` in `App.tsx`.
-- **§14 Favicon disk-cache cleanup** — startup janitor.
-- **§12 Reading list** — IPC channels + `readingList` array in `session.json` + page context menu action.
 - **§3 Hibernation scheduling** — `lastAccessed` on `TabInfo` + 60s interval.
+- **§1 Per-workspace settings** — depends on §23.
+- **§2 Saved session folders + auto-restore**.
+- **§4 Workspace popover quick actions** — Mute All / Close All / Export / Import.
+- **§6 Sidebar workspace search/filter**.
+- **§7 Hibernated-tab visual polish**.
+- **§5 Saved tab groups**.
 - **§1 Per-workspace settings** — depends on §23.
 - **§2 Saved session folders + auto-restore**.
 - **§4 Workspace popover quick actions** — Mute All / Close All / Export / Import.
@@ -96,6 +99,7 @@ Full per-feature version table lives in `AGENTS.md` §Versioning.
 - ✅ **v1.3.3** — **§23 Settings page scaffold**. Six sections in `src/renderer/src/settings/sections/`, each citing the v4 feature that owns it. Left-rail nav. Shared `internalPageStyles.ts` module used by both about + settings.
 - ✅ **v1.3.4** — **§16 Secret-storage wrapper**. `src/main/secretStorage.ts` provides a generic, consumer-agnostic API using the async `safeStorage` API. Never `usePlainTextEncryption()`. Linux fallback is opt-in per consumer via env-var pre-declaration. Privacy section in `about:settings` displays the active backend + reason when unavailable.
 - ✅ **v1.3.5** — **§13 Crash recovery**. `cleanExit` flag in `session.json` (set `true` only after the JSON write succeeds). `RestoreBanner.tsx` on startup when flag is `false`. New `session:restore-crashed` IPC. Catches the v4 §3.3 §13 caveat about a crash during save producing a false "clean exit" reading.
+- ✅ **v1.3.6** — **§14 Favicon disk-cache cleanup**. `src/main/faviconJanitor.ts` startup janitor scans `custom-logos/` for `favicon_*` files, cross-references against tabs + saved sessions + workspace backgrounds + service logos, deletes unreferenced files. User-imported logos (workspace backgrounds, service logos) are out of scope.
 
 ### Later (parked)
 
@@ -304,3 +308,4 @@ Material decisions made during roadmap execution. Append-only. Date every entry.
 ---
 
 *Last updated: 2026-06-16 — v1.3.5 tagged (§13 Crash recovery). v1.4.0 §14 (Favicon cleanup) is now in progress. Next refresh: end of v1.4.0 development.*
+§14 (Favicon cleanup) is now in progress. Next refresh: end of v1.4.0 development.*

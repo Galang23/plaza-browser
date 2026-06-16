@@ -9,6 +9,7 @@ import { registerMediaProtocol, setLogoResolver } from './protocol'
 import { TabManager, type SessionData, INTERNAL_ABOUT_ROUTES, type InternalAboutRoute } from './tabManager'
 import { startDownloadTracking, getDownloads, onDownloadsUpdated, offDownloadsUpdated } from './downloadManager'
 import { initSecretStorage, getSecretStorageStatus } from './secretStorage'
+import { collectReferencedFaviconFilenames, runFaviconJanitor } from './faviconJanitor'
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'media', privileges: { secure: true, standard: true, supportFetchAPI: true } }

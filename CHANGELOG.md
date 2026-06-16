@@ -4,7 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [1.3.5] — 2026-06-16
+## [1.3.6] — 2026-06-16
+
+> Sixth patch on the v1.3.x line. §14 favicon disk-cache cleanup lands.
+
+### Added
+- **§14 Favicon disk-cache cleanup** — `src/main/faviconJanitor.ts` provides a startup janitor that scans `userData/custom-logos/` for `favicon_*` files, builds a referenced set from all tabs' `favicon` URLs + all `savedSessions[].tabs[].favicon` URLs + all `workspaces[].backgroundImage` strings + all `globalShortcuts[].logoUrl` strings, and deletes any `favicon_*` file not in the set. User-imported logos (workspace backgrounds, service logos) are out of scope — they require explicit user action to remove.
+- **Wired into startup** — the janitor runs async after `uiView.webContents.on('did-finish-load')` so the session is fully loaded before references are collected. Errors are logged; a successful run emits a one-line summary.
+- **Functional test verified** — janitor correctly:
+  - Scans only `favicon_*` files (excludes `logo_user-import.png`).
+  - Parses `media://logos/<filename>` from each `favicon` reference.
+  - Dedupes references that appear in multiple sources.
+  - Deletes only unreferenced `favicon_*` files; never touches user assets.
+  - Honors the SESSION_RESUME caveat: janitor never deletes logos referenced by other workspaces, saved sessions, or global shortcuts.
 
 > Fifth patch on the v1.3.x line. §13 crash recovery lands. Plaza now distinguishes clean from crashed exits and offers the user a restore option.
 

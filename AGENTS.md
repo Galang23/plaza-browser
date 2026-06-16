@@ -1,7 +1,7 @@
 # Memory
 
 ## Project Overview
-Plaza Browser — Electron-based browser with hierarchical workspace + tab management. Version 1.3.5. See @package.json for available scripts. This is the base engine that powers the downstream `chat-plaza` project.
+Plaza Browser — Electron-based browser with hierarchical workspace + tab management. Version 1.3.6. See @package.json for available scripts. This is the base engine that powers the downstream `chat-plaza` project.
 
 ## Vision (re-check periodically)
 
