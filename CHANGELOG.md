@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [1.3.3] — 2026-06-16
+
+> Third patch on the v1.3.x line. Settings page scaffold lands. Reading list and about page remain as in v1.3.2 (about has real content; reading list is still a stub).
+
+### Added
+- **Settings page** — `about:settings` now renders the canonical v4 settings home. Six sections, each in its own React component under `src/renderer/src/settings/sections/`: General, Privacy, Workspace defaults, Performance, Permissions, About. A left-rail nav scrolls to each section. Each section renders a placeholder note citing the v4 feature that owns it; controls light up as their features ship.
+- **Shared internal-page styles** — `src/renderer/src/shared/internalPageStyles.ts` exports the consistent card + section + row styling used by both the about and settings pages.
+- **About section in settings** — The settings page's About section embeds the same runtime version + project links as `about:about`, via a slimmed-down version of the about component.
+
+### Changed
+- **About page** refactored to use the new shared styles module. No behavior change.
+
+---
+
 ## [1.3.2] — 2026-06-16
 
 > Second patch on the v1.3.x line. First v1.4.0 features land as additive work on top of the v1.3.1 scaffold. Settings/about/reading-list pages remain stubs (real content lands in v1.4.0 proper).
