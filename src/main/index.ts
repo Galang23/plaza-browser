@@ -50,6 +50,10 @@ function saveSession(): void {
     }
     mkdirSync(app.getPath('userData'), { recursive: true })
     writeFileSync(sessionPath, JSON.stringify(data, null, 2))
+    if (data) {
+      ;(data as any).cleanExit = true
+      writeFileSync(sessionPath, JSON.stringify(data, null, 2))
+    }
   } catch (err) {
     console.error('Failed to save session:', err)
   }
@@ -78,6 +82,7 @@ process.on('unhandledRejection', (reason) => {
 let cachedWorkspaces: any[] = []
 let cachedActiveGroupId = 'default'
 let cachedGlobalShortcuts: { name: string; icon: string; url: string; logoUrl?: string }[] | null = null
+let wasLastExitClean = true
 
 function getCachedWorkspaces() { return cachedWorkspaces }
 function getCachedActiveGroupId() { return cachedActiveGroupId }
@@ -89,7 +94,8 @@ function getSessionRestorePayload() {
     activeTabPerWorkspace: tabManager.getActiveTabPerWorkspaceSnapshot(),
     sidebarWidth: tabManager.getSidebarWidth(),
     globalShortcuts: cachedGlobalShortcuts || undefined,
-    splitState: tabManager.getSplitStateSnapshot()
+    splitState: tabManager.getSplitStateSnapshot(),
+    wasLastExitClean
   }
 }
 
@@ -526,6 +532,7 @@ function createWindow(): void {
   })
 
   const session = loadSession()
+  wasLastExitClean = session?.cleanExit === true
   if (session?.workspaces?.length) {
     cachedWorkspaces = normalizeWorkspaces(session.workspaces)
     cachedActiveGroupId = session.activeGroupId || 'default'
@@ -669,6 +676,11 @@ function setupIPC(win: BaseWindow): () => void {
     tabManager.setActiveGroupId(cachedActiveGroupId)
   })
   handle('session:get-state', () => getSessionRestorePayload())
+  handle('session:restore-crashed', () => {
+    wasLastExitClean = true
+    saveSession()
+    return getSessionRestorePayload()
+  })
   handle('session:get-active-tab', (groupId: string) => tabManager.getActiveTabForWorkspace(groupId))
   handle('session:update', (payload: any) => {
     if (!payload || typeof payload !== 'object') return

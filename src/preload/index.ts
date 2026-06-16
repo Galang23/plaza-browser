@@ -123,8 +123,22 @@ const api = {
     splitState?: SplitState
     tabFolders?: TabFolder[]
     savedSessions?: SavedSession[]
+    wasLastExitClean: boolean
   }> =>
     ipcRenderer.invoke('session:get-state'),
+
+  restoreCrashedSession: (): Promise<{
+    workspaces: Workspace[]
+    activeGroupId: string
+    activeTabPerWorkspace: Record<string, string | null>
+    sidebarWidth: number
+    globalShortcuts?: ShortcutPreset[]
+    splitState?: SplitState
+    tabFolders?: TabFolder[]
+    savedSessions?: SavedSession[]
+    wasLastExitClean: boolean
+  }> =>
+    ipcRenderer.invoke('session:restore-crashed'),
 
   updateSessionState: (payload: Record<string, unknown>): Promise<void> =>
     ipcRenderer.invoke('session:update', payload),

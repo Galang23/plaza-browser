@@ -7,6 +7,7 @@ import { Sidebar } from './components/Sidebar'
 import { FindOverlay } from './components/FindOverlay'
 import { DownloadPanel } from './components/DownloadPanel'
 import { TabSearchModal } from './components/TabSearchModal'
+import { RestoreBanner } from './components/RestoreBanner'
 
 export default function App() {
   const setTabs = useStore((s) => s.setTabs)

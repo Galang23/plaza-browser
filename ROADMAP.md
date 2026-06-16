@@ -86,17 +86,16 @@ Full per-feature version table lives in `AGENTS.md` §Versioning.
 ### Recently shipped (this session)
 
 - ✅ **v1.3.1 (Phase 0 complete)** — Internal `about:` routes, HTML + React scaffolds, CVE-2026-34780 guard via `bun run audit:preload`, Electron version floor pinned at `>=42.4.0`.
+  - **Phase 0.1** — `canLoadUrl` extension for `about:settings`, `about:reading-list`, `about:about` (`src/main/index.ts:115`).
+  - **Phase 0.2** — `resolveInternalPageUrl` mirrors on `TabManager` + `isInternalSettingsUrl` / `isInternalReadingListUrl` / `isInternalAboutPageUrl` detection helpers in `src/main/tabManager.ts:67`. Plus three HTML scaffolds (`settings.html`, `about.html`, `reading-list.html`) and matching React entries wired through `electron.vite.config.ts`. `normalizeRuntimeUrl` / `normalizeRestoredUrl` convert the resolved `file://` URL back to its `about:` form for the address bar. All six renderer entry points build clean.
+  - **Phase 0.3** — CVE-2026-34780 guard: comment block at top of `src/preload/index.ts` listing the 9 forbidden types, plus `bun run audit:preload` script (`scripts/audit-preload.ts`) that walks `src/preload/index.ts` + `index.d.ts`, strips strings + comments, and exits non-zero on any forbidden identifier in a type position. Verified clean on the current preload; positive-control test confirmed it catches an injected `Promise<VideoFrame>` return type and ignores string literals containing forbidden names.
+  - **Phase 0.4** — Electron version floor pinned: `engines.electron: ">=42.4.0"` in `package.json`. Plaza is already past the CVE-2026-34780 patch (39.8.0 / 40.7.0 / 41.0.0-beta.8); the `engines` field surfaces the floor in `bun install` output and AGENTS.md documents the CVE lower bounds for future reference.
 - ✅ **v1.3.2** — First v1.4.0 features land:
   - **§20 WebRTC IP-leak fix** — `force-webrtc-ip-handling-policy=default_public_interface_only` before `whenReady()`.
   - **§24 About page** — real content via new `app:get-info` IPC. Runtime versions + project links.
 - ✅ **v1.3.3** — **§23 Settings page scaffold**. Six sections in `src/renderer/src/settings/sections/`, each citing the v4 feature that owns it. Left-rail nav. Shared `internalPageStyles.ts` module used by both about + settings.
-
-### Recently shipped (this session)
-
-- ✅ **Phase 0.1** — `canLoadUrl` extension for `about:settings`, `about:reading-list`, `about:about` (`src/main/index.ts:115`).
-- ✅ **Phase 0.2** — `resolveInternalPageUrl` mirrors on `TabManager` + `isInternalSettingsUrl` / `isInternalReadingListUrl` / `isInternalAboutPageUrl` detection helpers in `src/main/tabManager.ts:67`. Plus three HTML scaffolds (`settings.html`, `about.html`, `reading-list.html`) and matching React entries wired through `electron.vite.config.ts`. `normalizeRuntimeUrl` / `normalizeRestoredUrl` convert the resolved `file://` URL back to its `about:` form for the address bar. All six renderer entry points build clean.
-- ✅ **Phase 0.3** — CVE-2026-34780 guard: comment block at top of `src/preload/index.ts` listing the 9 forbidden types, plus `bun run audit:preload` script (`scripts/audit-preload.ts`) that walks `src/preload/index.ts` + `index.d.ts`, strips strings + comments, and exits non-zero on any forbidden identifier in a type position. Verified clean on the current preload; positive-control test confirmed it catches an injected `Promise<VideoFrame>` return type and ignores string literals containing forbidden names.
-- ✅ **Phase 0.4** — Electron version floor pinned: `engines.electron: ">=42.4.0"` in `package.json`. Plaza is already past the CVE-2026-34780 patch (39.8.0 / 40.7.0 / 41.0.0-beta.8); the `engines` field surfaces the floor in `bun install` output and AGENTS.md documents the CVE lower bounds for future reference.
+- ✅ **v1.3.4** — **§16 Secret-storage wrapper**. `src/main/secretStorage.ts` provides a generic, consumer-agnostic API using the async `safeStorage` API. Never `usePlainTextEncryption()`. Linux fallback is opt-in per consumer via env-var pre-declaration. Privacy section in `about:settings` displays the active backend + reason when unavailable.
+- ✅ **v1.3.5** — **§13 Crash recovery**. `cleanExit` flag in `session.json` (set `true` only after the JSON write succeeds). `RestoreBanner.tsx` on startup when flag is `false`. New `session:restore-crashed` IPC. Catches the v4 §3.3 §13 caveat about a crash during save producing a false "clean exit" reading.
 
 ### Later (parked)
 
@@ -276,6 +275,10 @@ Material decisions made during roadmap execution. Append-only. Date every entry.
 | 2026-06-16 | Phase 0.1 + 0.2 landed: `about:settings` / `about:reading-list` / `about:about` routing + 3 HTML scaffolds + React entry stubs. | `INTERNAL_ABOUT_ROUTES` constant + 3 detection helpers in `tabManager.ts:67`; `resolveInternalPageUrl` mirrors `resolveNewTabUrl` (dev server in dev, `file://` in prod). Builds clean across all 6 renderer entry points. Patch release on v1.3.x line. |
 | 2026-06-16 | Phase 0.3 landed: CVE-2026-34780 guard via `bun run audit:preload` (`scripts/audit-preload.ts`) + comment block in `src/preload/index.ts`. | Script strips strings + comments, walks preload + `index.d.ts`, flags the 9 forbidden types (`VideoFrame`, `AudioData`, `ImageBitmap`, `OffscreenCanvas`, `MessagePort`, `ReadableStream`, `WritableStream`, `TransformStream`, `RTCPeerConnection`). Verified clean on current preload; positive-control catches `Promise<VideoFrame>` and ignores string literals. CI gate before any new IPC handler merges. |
 | 2026-06-16 | Phase 0.4 landed: Electron version floor pinned at `>=42.4.0` via `engines.electron` in `package.json`. | Plaza was already past the CVE-2026-34780 patch (39.8.0 / 40.7.0 / 41.0.0-beta.8). The `engines` field is the standard advisory surface; the authoritative pin is the `electron` devDependency. AGENTS.md §Security documents the CVE lower bounds for future reference. |
+| 2026-06-16 | v1.3.2 landed: §20 WebRTC IP-leak fix + §24 About page content. | `app.commandLine.appendSwitch('force-webrtc-ip-handling-policy', 'default_public_interface_only')` before `whenReady()`. New `app:get-info` IPC returns runtime versions + repo/docs URLs. `about:about` renders real content via the new IPC. |
+| 2026-06-16 | v1.3.3 landed: §23 Settings page scaffold. | 6 section components under `src/renderer/src/settings/sections/` (General, Privacy, Workspace defaults, Performance, Permissions, About). Each section renders a placeholder citing the owning v4 feature. Left-rail scroll nav. Shared `internalPageStyles.ts` used by both about + settings. About page refactored to use the shared styles. |
+| 2026-06-16 | v1.3.4 landed: §16 Secret-storage wrapper. | `src/main/secretStorage.ts` — generic, consumer-agnostic wrapper using async `safeStorage` API. Never `usePlainTextEncryption()`. Linux fallback is opt-in per consumer via env-var pre-declaration. Privacy section in `about:settings` displays the active backend + reason when unavailable. |
+| 2026-06-16 | v1.3.5 landed: §13 Crash recovery. | `cleanExit` flag in `session.json` (set `true` only after the JSON write succeeds). `RestoreBanner.tsx` on startup when flag is `false`. New `session:restore-crashed` IPC. Catches the v4 §3.3 §13 caveat about a crash during save producing a false "clean exit" reading. |
 
 ---
 
@@ -300,4 +303,4 @@ Material decisions made during roadmap execution. Append-only. Date every entry.
 
 ---
 
-*Last updated: 2026-06-16 — v1.3.4 tagged (§16 Secret-storage). v1.4.0 §13 (Crash recovery) is now in progress. Next refresh: end of v1.4.0 development.*
+*Last updated: 2026-06-16 — v1.3.5 tagged (§13 Crash recovery). v1.4.0 §14 (Favicon cleanup) is now in progress. Next refresh: end of v1.4.0 development.*

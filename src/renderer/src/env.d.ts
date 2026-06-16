@@ -67,6 +67,19 @@ interface ElectronAPI {
     splitState?: SplitState
     tabFolders?: TabFolder[]
     savedSessions?: SavedSession[]
+    wasLastExitClean: boolean
+  }>
+
+  restoreCrashedSession(): Promise<{
+    workspaces: Workspace[]
+    activeGroupId: string
+    activeTabPerWorkspace: Record<string, string | null>
+    sidebarWidth: number
+    globalShortcuts?: ShortcutPreset[]
+    splitState?: SplitState
+    tabFolders?: TabFolder[]
+    savedSessions?: SavedSession[]
+    wasLastExitClean: boolean
   }>
   updateSessionState(payload: Record<string, unknown>): Promise<void>
 

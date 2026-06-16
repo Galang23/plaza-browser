@@ -4,7 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [1.3.4] — 2026-06-16
+## [1.3.5] — 2026-06-16
+
+> Fifth patch on the v1.3.x line. §13 crash recovery lands. Plaza now distinguishes clean from crashed exits and offers the user a restore option.
+
+### Added
+- **§13 Crash recovery** — `cleanExit` flag in `session.json`. Set `true` only *after* the JSON write succeeds (per v4 §3.3 §13 caveat — otherwise a crash during save would produce a false "clean exit" reading). On startup, if `cleanExit === false`, the renderer shows `RestoreBanner.tsx` offering a session restore via the new `session:restore-crashed` IPC.
+- **`session:restore-crashed` IPC** — flips `wasLastExitClean` back to `true`, re-saves the session, and returns the restore payload. The banner's **Restore session** button calls this and re-hydrates the renderer state.
+- **`wasLastExitClean` field** in `getSessionState()` payload and the type. Surfaced to the renderer at startup.
+- **`getSessionState` / `restoreCrashedSession` preload methods** + matching `env.d.ts` declarations.
+
+### Files
+- `src/renderer/src/components/RestoreBanner.tsx` (new) — slim banner with **Restore session** + **Dismiss** buttons.
+- `src/main/index.ts` — `wasLastExitClean` module state, set on `loadSession()`, flipped by the new IPC.
+- `src/main/tabManager.ts` — `SessionData.cleanExit?: boolean` field, included as `false` in `getSessionData()` so a save always starts by writing `false` (the second pass overwrites it with `true` only on success).
 
 > Fourth patch on the v1.3.x line. §16 secret-storage wrapper lands. Privacy section in `about:settings` now displays the runtime secret-storage backend (OS keyring vs. unavailable).
 

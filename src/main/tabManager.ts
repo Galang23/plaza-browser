@@ -41,6 +41,7 @@ export interface SessionData {
   splitState?: SplitState
   tabFolders?: TabFolder[]
   savedSessions?: SavedSession[]
+  cleanExit?: boolean
 }
 
 const TOP_BAR_HEIGHT = 90
@@ -982,7 +983,8 @@ export class TabManager {
       sidebarWidth: this.sidebarWidth,
       splitState: this.getSplitStateSnapshot(),
       tabFolders: this.tabFolders,
-      savedSessions: this.savedSessions
+      savedSessions: this.savedSessions,
+      cleanExit: false
     }
   }
 
