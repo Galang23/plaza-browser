@@ -4,7 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [1.3.8] — 2026-06-16
+## [1.3.9] — 2026-06-16
+
+> Ninth patch on the v1.3.x line. §1 per-workspace settings lands.
+
+### Added
+- **§1 Per-workspace settings** — three new fields on the `Workspace` type: `zoomLevel?: number` (-9..+9, clamped), `fontSize?: number` (8..32, clamped), `contentBlockerLevel?: 'off' | 'standard' | 'aggressive'`. Sanitized in both `normalizeWorkspaces()` (legacy) and `sanitizeWorkspaceUpdates()` (current path) so any persisted value is bound on load.
+- **Apply on workspace activation** — `TabManager.setWorkspaces(workspaces)` stores the workspace list. `switchTab(id)` now detects workspace change and calls `applyWorkspaceZoom(workspace)` which sets the active tab's `webContents.setZoomLevel(zoomLevel)`. The session-restore path and the `workspace:sync` IPC handler also call `applyWorkspaceZoom` for the active workspace so the existing tab picks up the new default immediately.
+- **Workspace defaults section** in `about:settings` — live sliders for **Zoom level** (-3..+3 in 0.5 steps with **Reset** button) and **Font size** (10..24 in 1px steps). Title shows the active workspace's emoji + name. Changes apply immediately: zoom is sent through `window.electron.setZoomLevel(zoomLevel)` and persisted via `updateWorkspace` (which calls `workspace:update` IPC → `sanitizeWorkspaceUpdates`).
+- **`contentBlockerLevel` field is persisted but no UI** — it lands in v1.5.0 alongside §18 content blocker. The Workspace defaults section explicitly notes this.
+
+### Files
+- `src/renderer/src/types.ts` — 3 new fields on `Workspace`.
+- `src/main/index.ts` — extended `normalizeWorkspaces()` + `sanitizeWorkspaceUpdates()`. New `setWorkspaces` + `applyWorkspaceZoom` call sites in `workspace:sync` handler and `did-finish-load` startup.
+- `src/main/tabManager.ts` — `workspaces: Workspace[]` field, `setWorkspaces(workspaces)`, `findWorkspace(groupId)`, `applyWorkspaceZoom(workspace)`, extended `switchTab` to call it on workspace change.
+- `src/renderer/src/settings/sections/WorkspaceDefaultsSection.tsx` — live sliders wired to `useStore().updateWorkspace` + `window.electron.setZoomLevel`.
 
 > Eighth patch on the v1.3.x line. §3 hibernation scheduling lands.
 

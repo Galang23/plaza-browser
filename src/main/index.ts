@@ -160,7 +160,12 @@ function normalizeWorkspaces(workspaces: any[]): any[] {
       enabledShortcuts: Array.isArray(workspace.enabledShortcuts) ? workspace.enabledShortcuts.slice(0, 100) : undefined,
       shortcutOrder: Array.isArray(workspace.shortcutOrder) ? workspace.shortcutOrder.slice(0, 200) : undefined,
       backgroundImage: typeof workspace.backgroundImage === 'string' ? workspace.backgroundImage.slice(0, 512) : undefined,
-      backgroundOpacity: typeof workspace.backgroundOpacity === 'number' ? Math.max(0, Math.min(1, workspace.backgroundOpacity)) : undefined
+      backgroundOpacity: typeof workspace.backgroundOpacity === 'number' ? Math.max(0, Math.min(1, workspace.backgroundOpacity)) : undefined,
+      zoomLevel: typeof workspace.zoomLevel === 'number' ? Math.max(-9, Math.min(9, workspace.zoomLevel)) : undefined,
+      fontSize: typeof workspace.fontSize === 'number' ? Math.max(8, Math.min(32, workspace.fontSize)) : undefined,
+      contentBlockerLevel: workspace.contentBlockerLevel === 'off' || workspace.contentBlockerLevel === 'standard' || workspace.contentBlockerLevel === 'aggressive'
+        ? workspace.contentBlockerLevel
+        : undefined
     })
   }
   return normalized.length > 0 ? normalized : cachedWorkspaces
@@ -538,7 +543,10 @@ function createWindow(): void {
     cachedWorkspaces = normalizeWorkspaces(session.workspaces)
     cachedActiveGroupId = session.activeGroupId || 'default'
     if ((session as any).globalShortcuts) cachedGlobalShortcuts = (session as any).globalShortcuts
+    tabManager.setWorkspaces(cachedWorkspaces)
     tabManager.restoreSession(session)
+    const activeWs = cachedWorkspaces.find(w => w.id === cachedActiveGroupId)
+    tabManager.applyWorkspaceZoom(activeWs)
   }
 
   uiView.webContents.on('did-finish-load', () => {
@@ -675,6 +683,9 @@ function setupIPC(win: BaseWindow): () => void {
     cachedWorkspaces = normalizeWorkspaces(workspaces)
     cachedActiveGroupId = normalizeWorkspaceId(activeGroupId)
     tabManager.setActiveGroupId(cachedActiveGroupId)
+    tabManager.setWorkspaces(cachedWorkspaces)
+    const activeWs = cachedWorkspaces.find(w => w.id === cachedActiveGroupId)
+    tabManager.applyWorkspaceZoom(activeWs)
   })
   handle('session:get-state', () => getSessionRestorePayload())
   handle('session:restore-crashed', () => {

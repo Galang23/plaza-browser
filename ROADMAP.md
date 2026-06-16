@@ -68,19 +68,14 @@ Full per-feature version table lives in `AGENTS.md` §Versioning.
 
 ### Now (active work)
 
-- **§3 Hibernation scheduling** — `lastAccessed: number` on `TabInfo` (updated on `switchTab` and tab activation), `tab:set-hibernation-policy` IPC with values `'off' | '5min' | '15min' | '1h'`, 60s interval in `tabManager` calls existing `hibernateTab` for tabs past threshold. Skip active / split / focused tabs. Wake on `switchTab` (existing path). Persist policy in `session.json`.
+- **§2 Saved session folders + auto-restore** — extend existing `savedSessions` with `folderId` and `autoRestore: boolean`. On startup (after `loadSession`), iterate `autoRestore` sessions and call `tabManager.createTab` for each URL in its saved workspace grouping. Add **Move to Folder** + **Mark Auto-Restore** to the `SessionsGrid` context menu.
 
 ### Next (queued, unstarted)
 
-- **§1 Per-workspace settings** — depends on §23.
-- **§2 Saved session folders + auto-restore**.
-- **§4 Workspace popover quick actions** — Mute All / Close All / Export / Import.
-- **§6 Sidebar workspace search/filter**.
-- **§7 Hibernated-tab visual polish**.
-- **§5 Saved tab groups**.
-- **§1 Per-workspace settings** — depends on §23.
-- **§2 Saved session folders + auto-restore**.
-- **§4 Workspace popover quick actions** — Mute All / Close All / Export / Import.
+- **§4 Workspace popover quick actions** — Mute All / Close All / Export Workspace / Import Workspace.
+- **§6 Sidebar workspace search/filter** — search input + `<mark>` highlight. Renderer-only.
+- **§7 Hibernated-tab visual polish** — CSS `.sidebar-tab.hibernated` + wake animation.
+- **§5 Saved tab groups** — extend `TabFolder` with `isSavedGroup` + `savedAt`. New `folder:save-as-group` / `folder:open-group` IPC.
 - **§6 Sidebar workspace search/filter**.
 - **§7 Hibernated-tab visual polish**.
 - **§5 Saved tab groups**.
@@ -310,6 +305,6 @@ Material decisions made during roadmap execution. Append-only. Date every entry.
 
 ---
 
-*Last updated: 2026-06-16 — v1.3.8 tagged (§3 Hibernation scheduling). v1.4.0 §1 (Per-workspace settings) is now in progress. Next refresh: end of v1.4.0 development.*
+*Last updated: 2026-06-16 — v1.3.9 tagged (§1 Per-workspace settings). v1.4.0 §2 (Saved session folders) is now in progress. Next refresh: end of v1.4.0 development.*
 §14 (Favicon cleanup) is now in progress. Next refresh: end of v1.4.0 development.*
 Next refresh: end of v1.4.0 development.*

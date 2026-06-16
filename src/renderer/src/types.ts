@@ -69,6 +69,10 @@ export interface Workspace {
   // For the React Newtab grid (generic shortcuts)
   enabledShortcuts?: string[]
   shortcutOrder?: string[]
+  // §1 Per-workspace settings
+  zoomLevel?: number
+  fontSize?: number
+  contentBlockerLevel?: 'off' | 'standard' | 'aggressive'
 }
 
 export interface ShortcutPreset {

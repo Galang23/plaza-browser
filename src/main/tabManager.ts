@@ -212,6 +212,7 @@ export class TabManager {
   }
   private hibernationPolicy: HibernationPolicy = 'off'
   private hibernationTimer: NodeJS.Timeout | null = null
+  private workspaces: Workspace[] = []
 
   static readonly HIBERNATION_THRESHOLDS_MS: Record<Exclude<HibernationPolicy, 'off'>, number> = {
     '5min': 5 * 60 * 1000,
@@ -290,6 +291,21 @@ export class TabManager {
       this.splitState.activeSplitGroupId = null
     }
     this.activeGroupId = groupId
+  }
+
+  setWorkspaces(workspaces: Workspace[]): void {
+    this.workspaces = Array.isArray(workspaces) ? workspaces : []
+  }
+
+  findWorkspace(groupId: string): Workspace | undefined {
+    return this.workspaces.find(w => w.id === groupId)
+  }
+
+  applyWorkspaceZoom(workspace: Workspace | undefined): void {
+    if (!workspace || typeof workspace.zoomLevel !== 'number') return
+    const tab = this.getActiveTab()
+    if (!tab?.view || tab.view.webContents.isDestroyed()) return
+    tab.view.webContents.setZoomLevel(Math.max(-9, Math.min(9, workspace.zoomLevel)))
   }
 
   getSplitStateSnapshot(): SplitState {
@@ -670,6 +686,11 @@ export class TabManager {
     const tab = this.tabs.get(id)
     if (!tab) return
     tab.lastAccessed = Date.now()
+    const previousGroupId = this.activeGroupId
+    this.activeGroupId = tab.groupId
+    if (tab.groupId !== previousGroupId) {
+      this.applyWorkspaceZoom(this.findWorkspace(tab.groupId))
+    }
 
     const targetGroup = this.getSplitGroupForTab(id)
     const activeGroup = this.getActiveSplitGroup()
