@@ -32,6 +32,15 @@ export interface SavedSession {
 
 export type SplitLayout = 'horizontal' | 'vertical' | 'grid'
 
+export interface ReadingListEntry {
+  id: string
+  url: string
+  title: string
+  favicon: string
+  savedAt: number
+  isRead: boolean
+}
+
 export interface SplitGroup {
   id: string
   groupId: string // Workspace ID

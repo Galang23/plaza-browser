@@ -776,6 +776,23 @@ function setupIPC(win: BaseWindow): () => void {
     docsUrl: 'https://github.com/galang23/plaza-browser/blob/main/AGENTS.md'
   }))
 
+  handle('reading-list:list', () => tabManager.getReadingList())
+  handle('reading-list:add', (input: { url: string; title: string; favicon?: string }) => {
+    if (!input || typeof input !== 'object' || typeof input.url !== 'string' || !input.url.startsWith('http')) {
+      throw new Error('reading-list:add requires { url, title, favicon? } with an http(s) URL')
+    }
+    return tabManager.addToReadingList(input)
+  })
+  handle('reading-list:remove', (id: string) => {
+    if (typeof id !== 'string' || !id) throw new Error('reading-list:remove requires a non-empty id')
+    return tabManager.removeFromReadingList(id)
+  })
+  handle('reading-list:mark-read', (id: string, isRead: boolean) => {
+    if (typeof id !== 'string' || !id) throw new Error('reading-list:mark-read requires a non-empty id')
+    if (typeof isRead !== 'boolean') throw new Error('reading-list:mark-read requires a boolean')
+    return tabManager.markReadingListItemRead(id, isRead)
+  })
+
   tabManager.setSavePageAsHandler(savePageAs)
   tabManager.setRendererNotifier(data => sendToRenderer('tabs:updated', data))
   tabManager.setFindResultNotifier(result => sendToRenderer('tab:find-result', result))

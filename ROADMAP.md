@@ -68,11 +68,10 @@ Full per-feature version table lives in `AGENTS.md` §Versioning.
 
 ### Now (active work)
 
-- **§12 Reading list** — IPC channels + `readingList` array in `session.json` + page context menu action. Add **Save to Reading List** to the page context menu in `tabManager.ts` → `Menu.buildFromTemplate`.
+- **§3 Hibernation scheduling** — `lastAccessed: number` on `TabInfo` (updated on `switchTab` and tab activation), `tab:set-hibernation-policy` IPC with values `'off' | '5min' | '15min' | '1h'`, 60s interval in `tabManager` calls existing `hibernateTab` for tabs past threshold. Skip active / split / focused tabs. Wake on `switchTab` (existing path). Persist policy in `session.json`.
 
 ### Next (queued, unstarted)
 
-- **§3 Hibernation scheduling** — `lastAccessed` on `TabInfo` + 60s interval.
 - **§1 Per-workspace settings** — depends on §23.
 - **§2 Saved session folders + auto-restore**.
 - **§4 Workspace popover quick actions** — Mute All / Close All / Export / Import.
@@ -100,6 +99,7 @@ Full per-feature version table lives in `AGENTS.md` §Versioning.
 - ✅ **v1.3.4** — **§16 Secret-storage wrapper**. `src/main/secretStorage.ts` provides a generic, consumer-agnostic API using the async `safeStorage` API. Never `usePlainTextEncryption()`. Linux fallback is opt-in per consumer via env-var pre-declaration. Privacy section in `about:settings` displays the active backend + reason when unavailable.
 - ✅ **v1.3.5** — **§13 Crash recovery**. `cleanExit` flag in `session.json` (set `true` only after the JSON write succeeds). `RestoreBanner.tsx` on startup when flag is `false`. New `session:restore-crashed` IPC. Catches the v4 §3.3 §13 caveat about a crash during save producing a false "clean exit" reading.
 - ✅ **v1.3.6** — **§14 Favicon disk-cache cleanup**. `src/main/faviconJanitor.ts` startup janitor scans `custom-logos/` for `favicon_*` files, cross-references against tabs + saved sessions + workspace backgrounds + service logos, deletes unreferenced files. User-imported logos (workspace backgrounds, service logos) are out of scope.
+- ✅ **v1.3.7** — **§12 Reading list**. `about:reading-list` is a real feature. 4 IPC channels, `readingList: ReadingListEntry[]` in `session.json`, **Save to Reading List** page context menu action (http(s) only), real list UI with mark-read + remove, Continue Reading section on the new tab page.
 
 ### Later (parked)
 
@@ -283,6 +283,8 @@ Material decisions made during roadmap execution. Append-only. Date every entry.
 | 2026-06-16 | v1.3.3 landed: §23 Settings page scaffold. | 6 section components under `src/renderer/src/settings/sections/` (General, Privacy, Workspace defaults, Performance, Permissions, About). Each section renders a placeholder citing the owning v4 feature. Left-rail scroll nav. Shared `internalPageStyles.ts` used by both about + settings. About page refactored to use the shared styles. |
 | 2026-06-16 | v1.3.4 landed: §16 Secret-storage wrapper. | `src/main/secretStorage.ts` — generic, consumer-agnostic wrapper using async `safeStorage` API. Never `usePlainTextEncryption()`. Linux fallback is opt-in per consumer via env-var pre-declaration. Privacy section in `about:settings` displays the active backend + reason when unavailable. |
 | 2026-06-16 | v1.3.5 landed: §13 Crash recovery. | `cleanExit` flag in `session.json` (set `true` only after the JSON write succeeds). `RestoreBanner.tsx` on startup when flag is `false`. New `session:restore-crashed` IPC. Catches the v4 §3.3 §13 caveat about a crash during save producing a false "clean exit" reading. |
+| 2026-06-16 | v1.3.6 landed: §14 Favicon disk-cache cleanup. | `src/main/faviconJanitor.ts` — startup janitor scans `custom-logos/` for `favicon_*` files, cross-references tabs + saved sessions + workspace backgrounds + service logos, deletes unreferenced files. User-imported logos out of scope. Honors the SESSION_RESUME caveat: never deletes logos referenced by other workspaces, saved sessions, or global shortcuts. |
+| 2026-06-16 | v1.3.7 landed: §12 Reading list. | `about:reading-list` is a real feature. 4 IPC channels (`reading-list:list` / `:add` / `:remove` / `:mark-read`). `readingList: ReadingListEntry[]` persisted in `session.json`. **Save to Reading List** page context menu action (http(s) only). Real list UI with mark-read + remove buttons. Continue Reading section on the new tab page shows the 6 most-recent unread items as horizontal cards. |
 
 ---
 

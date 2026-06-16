@@ -148,6 +148,12 @@ interface ElectronAPI {
     reason?: string
   }>
 
+  // Reading list (about:reading-list)
+  readingListList(): Promise<ReadingListEntry[]>
+  readingListAdd(input: { url: string; title: string; favicon?: string }): Promise<ReadingListEntry>
+  readingListRemove(id: string): Promise<boolean>
+  readingListMarkRead(id: string, isRead: boolean): Promise<boolean>
+
   // Event subscriptions
   onTabsUpdated(
     cb: (data: { tabs: TabInfo[]; activeTabId: string | null; splitState?: SplitState }) => void

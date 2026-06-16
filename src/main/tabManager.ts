@@ -2,7 +2,8 @@ import { BaseWindow, WebContentsView, Menu, clipboard } from 'electron'
 import type { ContextMenuParams, MenuItemConstructorOptions } from 'electron'
 import { join } from 'path'
 import { pathToFileURL } from 'url'
-import type { TabInfo, Workspace, SplitLayout, SplitState, SplitGroup, TabFolder, SavedSession } from '../renderer/src/types'
+import { randomUUID } from 'crypto'
+import type { TabInfo, Workspace, SplitLayout, SplitState, SplitGroup, TabFolder, SavedSession, ReadingListEntry } from '../renderer/src/types'
 import { registerSessionDownloads } from './downloadManager'
 import { registerMediaProtocol } from './protocol'
 
@@ -41,6 +42,7 @@ export interface SessionData {
   splitState?: SplitState
   tabFolders?: TabFolder[]
   savedSessions?: SavedSession[]
+  readingList?: ReadingListEntry[]
   cleanExit?: boolean
 }
 
@@ -187,6 +189,7 @@ export class TabManager {
   private closedTabs: ClosedTabInfo[] = []
   private tabFolders: TabFolder[] = []
   private savedSessions: SavedSession[] = []
+  private readingList: ReadingListEntry[] = []
   private window: BaseWindow | null = null
   private sidebarWidth = 250
   private rendererUrl = ''
@@ -984,6 +987,7 @@ export class TabManager {
       splitState: this.getSplitStateSnapshot(),
       tabFolders: this.tabFolders,
       savedSessions: this.savedSessions,
+      readingList: this.readingList,
       cleanExit: false
     }
   }
@@ -1068,6 +1072,7 @@ export class TabManager {
 
     if (Array.isArray(data.tabFolders)) this.tabFolders = data.tabFolders
     if (Array.isArray(data.savedSessions)) this.savedSessions = data.savedSessions
+    if (Array.isArray(data.readingList)) this.readingList = data.readingList as ReadingListEntry[]
 
     return {
       activeGroupId: groupId,
@@ -1091,6 +1096,55 @@ export class TabManager {
       }
       this.notifyRenderer()
     }
+  }
+
+  getReadingList(): ReadingListEntry[] {
+    return this.readingList
+  }
+
+  addToReadingList(input: { url: string; title: string; favicon?: string }): ReadingListEntry {
+    const url = typeof input?.url === 'string' ? input.url : ''
+    const title = typeof input?.title === 'string' ? input.title : url
+    const favicon = typeof input?.favicon === 'string' ? input.favicon : ''
+    const existing = this.readingList.find((entry) => entry.url === url)
+    if (existing) {
+      existing.isRead = false
+      existing.savedAt = Date.now()
+      if (title) existing.title = title
+      if (favicon) existing.favicon = favicon
+      this.updateExtraSessionState({ readingList: this.readingList })
+      return existing
+    }
+    const entry: ReadingListEntry = {
+      id: randomUUID(),
+      url,
+      title,
+      favicon,
+      savedAt: Date.now(),
+      isRead: false
+    }
+    this.readingList.unshift(entry)
+    this.updateExtraSessionState({ readingList: this.readingList })
+    return entry
+  }
+
+  removeFromReadingList(id: string): boolean {
+    const before = this.readingList.length
+    this.readingList = this.readingList.filter((entry) => entry.id !== id)
+    const removed = this.readingList.length !== before
+    if (removed) {
+      this.updateExtraSessionState({ readingList: this.readingList })
+    }
+    return removed
+  }
+
+  markReadingListItemRead(id: string, isRead: boolean): boolean {
+    const entry = this.readingList.find((e) => e.id === id)
+    if (!entry) return false
+    if (entry.isRead === isRead) return true
+    entry.isRead = isRead
+    this.updateExtraSessionState({ readingList: this.readingList })
+    return true
   }
 
   getActiveTabForWorkspace(groupId: string): string | null {
@@ -1444,6 +1498,17 @@ export class TabManager {
         label: 'Save Page As...',
         accelerator: 'CommandOrControl+S',
         click: () => this.savePageAsHandler?.()
+      })
+      template.push({
+        label: 'Save to Reading List',
+        enabled: !!normalizedPageUrl && /^https?:$/.test(new URL(normalizedPageUrl).protocol),
+        click: () => {
+          this.addToReadingList({
+            url: normalizedPageUrl,
+            title: tab.title || normalizedPageUrl,
+            favicon: tab.favicon
+          })
+        }
       })
       addSeparator()
       if (normalizedPageUrl) {

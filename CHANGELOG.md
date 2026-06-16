@@ -4,7 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [1.3.6] — 2026-06-16
+## [1.3.7] — 2026-06-16
+
+> Seventh patch on the v1.3.x line. §12 reading list lands — full feature.
+
+### Added
+- **§12 Local reading list** — `about:reading-list` is now a real feature, not a stub.
+  - **`readingList: ReadingListEntry[]`** added to `SessionData`. Persists as part of `session.json` like `tabFolders` and `savedSessions`.
+  - **`ReadingListEntry` type**: `{ id, url, title, favicon, savedAt, isRead }`. `id` is a `crypto.randomUUID()`, `savedAt` is the Date.now() timestamp.
+  - **`TabManager` methods**: `getReadingList()`, `addToReadingList({url,title,favicon?})` (re-saves existing URLs as unread + bumps `savedAt`), `removeFromReadingList(id)`, `markReadingListItemRead(id, isRead)`. All write through `updateExtraSessionState` so a single `session:update` IPC persists everything.
+  - **IPC channels**: `reading-list:list`, `reading-list:add`, `reading-list:remove`, `reading-list:mark-read`. The `add` channel requires an `http(s)` URL — other schemes are rejected.
+  - **Preload methods** + matching `env.d.ts` declarations.
+- **`about:reading-list` real content** — list view with **Mark read / unread** + **Remove** buttons, "See all →" link to the page itself, click-to-open behavior, saved-date timestamp per item, empty-state guidance pointing to the page context menu action.
+- **Save to Reading List page context menu** — added to `tabManager.ts:showPageContextMenu` between **Save Page As…** and **Copy Page URL**. Enabled only for `http(s)` pages (parses the URL's protocol).
+- **Continue Reading section** on the new tab page — shows the 6 most-recent unread items as horizontal cards (title, favicon, URL) with a "See all →" link to `about:reading-list`. Hidden when the list is empty. New component `src/renderer/src/newtab-react/components/ContinueReading.tsx`.
+
+### Files
+- `src/main/tabManager.ts` — `ReadingListEntry` import, `readingList?: ReadingListEntry[]` field on `SessionData`, private `readingList` array, restore-from-session + save-to-session wiring, 4 new methods, **Save to Reading List** menu item.
+- `src/renderer/src/types.ts` — `ReadingListEntry` type.
+- `src/renderer/src/env.d.ts` — type imports + 4 method declarations.
+- `src/preload/index.ts` — type import + 4 method implementations.
+- `src/main/index.ts` — 4 IPC handlers.
+- `src/renderer/src/reading-list/main.tsx` — real content (replaces the v1.3.1 stub).
+- `src/renderer/src/newtab-react/components/ContinueReading.tsx` (new).
+- `src/renderer/src/newtab-react/App.tsx` — mounts `<ContinueReading />` after `<SessionsGrid />` in non-edit mode.
 
 > Sixth patch on the v1.3.x line. §14 favicon disk-cache cleanup lands.
 

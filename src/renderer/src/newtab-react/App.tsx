@@ -5,6 +5,7 @@ import BackgroundLayer from './components/BackgroundLayer'
 import SearchBar from './components/SearchBar'
 import ServiceGrid from './components/ServiceGrid'
 import SessionsGrid from './components/SessionsGrid'
+import ContinueReading from './components/ContinueReading'
 import { SavedSession } from '../types'
 
 function getParameter(name: string): string | null {

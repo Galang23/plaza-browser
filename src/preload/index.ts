@@ -12,7 +12,7 @@
  */
 
 import { contextBridge, ipcRenderer } from 'electron'
-import type { TabInfo, DownloadInfo, Workspace, SplitState, ShortcutPreset, TabFolder, SavedSession } from '../renderer/src/types'
+import type { TabInfo, DownloadInfo, Workspace, SplitState, ShortcutPreset, TabFolder, SavedSession, ReadingListEntry } from '../renderer/src/types'
 
 const api = {
   createTab: (url: string, groupId: string, userAgent: string): Promise<TabInfo> =>
@@ -263,7 +263,19 @@ const api = {
     backend: 'safeStorage' | 'env-var-fallback' | 'unavailable'
     available: boolean
     reason?: string
-  }> => ipcRenderer.invoke('secret-storage:get-status')
+  }> => ipcRenderer.invoke('secret-storage:get-status'),
+
+  readingListList: (): Promise<ReadingListEntry[]> =>
+    ipcRenderer.invoke('reading-list:list'),
+
+  readingListAdd: (input: { url: string; title: string; favicon?: string }): Promise<ReadingListEntry> =>
+    ipcRenderer.invoke('reading-list:add', input),
+
+  readingListRemove: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke('reading-list:remove', id),
+
+  readingListMarkRead: (id: string, isRead: boolean): Promise<boolean> =>
+    ipcRenderer.invoke('reading-list:mark-read', id, isRead)
 }
 
 contextBridge.exposeInMainWorld('electron', api)
