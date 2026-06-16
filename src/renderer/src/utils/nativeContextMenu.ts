@@ -4,6 +4,7 @@ export interface NativeContextMenuItem {
   separator?: boolean
   disabled?: boolean
   shortcut?: string
+  submenu?: NativeContextMenuItem[]
 }
 
 export function separator(): NativeContextMenuItem {

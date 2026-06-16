@@ -2,8 +2,9 @@ import { BaseWindow, WebContentsView, Menu, clipboard } from 'electron'
 import type { ContextMenuParams, MenuItemConstructorOptions } from 'electron'
 import { join } from 'path'
 import { pathToFileURL } from 'url'
-import type { TabInfo, Workspace } from '../renderer/src/types'
+import type { TabInfo, Workspace, SplitLayout, SplitState, SplitGroup, TabFolder, SavedSession } from '../renderer/src/types'
 import { registerSessionDownloads } from './downloadManager'
+import { registerMediaProtocol } from './protocol'
 
 interface Tab {
   id: string
@@ -13,9 +14,13 @@ interface Tab {
   groupId: string
   favicon: string
   userAgent: string
+  enabledShortcuts?: string[]
+  pinned: boolean
   isCrashed: boolean
   isUnresponsive: boolean
   isCurrentlyAudible: boolean
+  isHibernated?: boolean
+  folderId?: string
 }
 
 interface ClosedTabInfo {
@@ -24,20 +29,26 @@ interface ClosedTabInfo {
   groupId: string
   userAgent: string
   favicon: string
+  pinned: boolean
 }
 
 export interface SessionData {
   workspaces: Workspace[]
-  tabs: { id?: string; url: string; title: string; groupId: string; userAgent: string; favicon: string }[]
+  tabs: { id?: string; url: string; title: string; groupId: string; userAgent: string; favicon: string; pinned: boolean; folderId?: string }[]
   activeGroupId: string
   activeTabPerWorkspace: Record<string, string | null>
   sidebarWidth: number
+  splitState?: SplitState
+  tabFolders?: TabFolder[]
+  savedSessions?: SavedSession[]
 }
 
 const TOP_BAR_HEIGHT = 90
 const RESIZE_HANDLE_WIDTH = 16
 const CLOSED_TAB_LIMIT = 10
 const DEFAULT_WORKSPACE_ID = 'default'
+const SPLIT_MAX_TABS = 5
+const SPLIT_GAP = 4
 
 function isSafeId(id: string): boolean {
   return /^[A-Za-z0-9_-]{1,80}$/.test(id)
@@ -57,6 +68,17 @@ function isInternalNewTabUrl(url: URL): boolean {
   const isFileNewTab = url.protocol === 'file:' && url.pathname.endsWith('/renderer/newtab.html')
   const isDevNewTab = (url.protocol === 'http:' || url.protocol === 'https:') && url.pathname.endsWith('/newtab.html')
   return isFileNewTab || isDevNewTab
+}
+
+function normalizeNewTabUrlForStorage(url: string): string {
+  try {
+    const parsed = new URL(url)
+    if (isInternalNewTabUrl(parsed)) {
+      parsed.search = ''
+      return parsed.toString()
+    }
+  } catch { /* invalid URL, leave as-is */ }
+  return url
 }
 
 function normalizeRuntimeUrl(url: string): string {
@@ -96,13 +118,14 @@ function canOpenUrlInTab(url: string): boolean {
 function normalizeRestoredUrl(value: unknown): string {
   if (typeof value !== 'string') return 'about:blank'
   const url = value.trim()
-  if (!canRestoreUrl(url)) return 'about:blank'
+  if (url === 'about:blank') return 'about:blank'
   try {
     const parsed = new URL(url)
     if (isInternalNewTabUrl(parsed)) return 'about:blank'
   } catch {
-    return 'about:blank'
+    /* invalid URL, treat as about:blank */
   }
+  if (!canRestoreUrl(url)) return 'about:blank'
   return url
 }
 
@@ -126,16 +149,26 @@ export class TabManager {
   private tabs = new Map<string, Tab>()
   private activeTabId: string | null = null
   private closedTabs: ClosedTabInfo[] = []
+  private tabFolders: TabFolder[] = []
+  private savedSessions: SavedSession[] = []
   private window: BaseWindow | null = null
   private sidebarWidth = 250
   private rendererUrl = ''
   private activeTabPerWorkspace = new Map<string, string>()
   private activeGroupId = 'default'
   private sessionsRestored = false
-  private rendererNotifier: ((data: { tabs: TabInfo[]; activeTabId: string | null }) => void) | null = null
+  private notifyRendererTimeout: any = null
+  private rendererNotifier: ((data: { tabs: TabInfo[]; activeTabId: string | null; splitState?: SplitState }) => void) | null = null
   private findResultNotifier: ((result: { activeMatchOrdinal: number; matches: number }) => void) | null = null
+  private shortcutNotifier: ((action: string) => void) | null = null
   private savePageAsHandler: (() => void) | null = null
   private resizeHandler: (() => void) | null = null
+  private faviconFetcher: ((url: string) => Promise<string | null>) | null = null
+  private faviconFetchTimers = new Map<string, NodeJS.Timeout>()
+  private splitState: SplitState = {
+    groups: [],
+    activeSplitGroupId: null
+  }
 
   setWindow(win: BaseWindow): void {
     if (this.window && this.resizeHandler) {
@@ -144,6 +177,23 @@ export class TabManager {
     this.window = win
     this.resizeHandler = () => this.updateBounds()
     win.on('resize', this.resizeHandler)
+  }
+
+  private getActiveSplitGroup(): SplitGroup | null {
+    if (!this.splitState.activeSplitGroupId) return null
+    return this.splitState.groups.find(g => g.id === this.splitState.activeSplitGroupId) || null
+  }
+
+  private getSplitGroupForTab(tabId: string): SplitGroup | null {
+    return this.splitState.groups.find(g => g.tabIds.includes(tabId)) || null
+  }
+
+  private getAvailableColorIndex(groupId: string): number {
+    const used = this.splitState.groups.filter(g => g.groupId === groupId).map(g => g.colorIndex)
+    for (let i = 0; i < 10; i++) {
+      if (!used.includes(i)) return i
+    }
+    return 0
   }
 
   setRendererUrl(url: string): void {
@@ -167,6 +217,10 @@ export class TabManager {
       this.window.off('resize', this.resizeHandler)
     }
     this.resizeHandler = null
+    for (const timer of this.faviconFetchTimers.values()) {
+      clearTimeout(timer)
+    }
+    this.faviconFetchTimers.clear()
     for (const tab of Array.from(this.tabs.values())) {
       this.detachTabView(tab)
       this.closeTabWebContents(tab)
@@ -174,14 +228,29 @@ export class TabManager {
     this.tabs.clear()
     this.activeTabId = null
     this.activeTabPerWorkspace.clear()
+    this.splitState = {
+      groups: [],
+      activeSplitGroupId: null
+    }
     this.window = null
   }
 
   setActiveGroupId(groupId: string): void {
+    const activeGroup = this.getActiveSplitGroup()
+    if (activeGroup && activeGroup.groupId !== groupId) {
+      this.splitState.activeSplitGroupId = null
+    }
     this.activeGroupId = groupId
   }
 
-  setRendererNotifier(cb: (data: { tabs: TabInfo[]; activeTabId: string | null }) => void): void {
+  getSplitStateSnapshot(): SplitState {
+    return {
+      groups: this.splitState.groups.map(g => ({ ...g, tabIds: [...g.tabIds] })),
+      activeSplitGroupId: this.splitState.activeSplitGroupId
+    }
+  }
+
+  setRendererNotifier(cb: (data: { tabs: TabInfo[]; activeTabId: string | null; splitState?: SplitState }) => void): void {
     this.rendererNotifier = cb
   }
 
@@ -189,8 +258,16 @@ export class TabManager {
     this.findResultNotifier = cb
   }
 
+  setShortcutNotifier(cb: (action: string) => void): void {
+    this.shortcutNotifier = cb
+  }
+
   setSavePageAsHandler(cb: () => void): void {
     this.savePageAsHandler = cb
+  }
+
+  setFaviconFetcher(cb: (url: string) => Promise<string | null>): void {
+    this.faviconFetcher = cb
   }
 
   updateBounds(): void {
@@ -198,15 +275,33 @@ export class TabManager {
     if (this.window.isDestroyed()) return
     const bounds = this.window.getContentBounds()
     const contentX = this.sidebarWidth + RESIZE_HANDLE_WIDTH
-    const tabBounds = {
+    const availableBounds = {
       x: contentX,
       y: TOP_BAR_HEIGHT,
       width: bounds.width - contentX,
       height: bounds.height - TOP_BAR_HEIGHT
     }
+
+    const activeGroup = this.getActiveSplitGroup()
+    if (activeGroup && activeGroup.tabIds.length > 0) {
+      const splitBounds = this.calculateSplitBounds(availableBounds, activeGroup)
+      for (let i = 0; i < activeGroup.tabIds.length; i += 1) {
+        const tabId = activeGroup.tabIds[i]
+        const tab = this.tabs.get(tabId)
+        if (!tab?.view) continue
+        tab.view.setBounds(splitBounds[i])
+      }
+      for (const [tabId, tab] of this.tabs) {
+        if (!activeGroup.tabIds.includes(tabId)) {
+          this.detachTabView(tab)
+        }
+      }
+      return
+    }
+
     if (this.activeTabId) {
       const activeTab = this.tabs.get(this.activeTabId)
-      if (activeTab?.view) activeTab.view.setBounds(tabBounds)
+      if (activeTab?.view) activeTab.view.setBounds(availableBounds)
     }
   }
 
@@ -215,7 +310,255 @@ export class TabManager {
     this.updateBounds()
   }
 
-  createTab(url: string, groupId: string, userAgent: string): TabInfo {
+  enterSplitMode(tabIds: string[], layout?: SplitLayout): void {
+    if (!Array.isArray(tabIds) || tabIds.length === 0) return
+    const unique = Array.from(new Set(tabIds)).slice(0, SPLIT_MAX_TABS)
+    const validTabs = unique.filter((id) => this.tabs.has(id))
+    if (validTabs.length === 0) return
+    const groupId = this.tabs.get(validTabs[0])?.groupId || this.activeGroupId
+    const sameGroupTabs = validTabs.filter((id) => this.tabs.get(id)?.groupId === groupId)
+    if (sameGroupTabs.length === 0) return
+
+    const activeCandidateId = this.activeTabId && sameGroupTabs.includes(this.activeTabId)
+      ? this.activeTabId
+      : sameGroupTabs[0]
+    const activePaneIndex = Math.max(0, sameGroupTabs.indexOf(activeCandidateId))
+
+    // Remove these tabs from any existing groups
+    for (const tabId of sameGroupTabs) {
+      const existingGroup = this.getSplitGroupForTab(tabId)
+      if (existingGroup) {
+        existingGroup.tabIds = existingGroup.tabIds.filter(id => id !== tabId)
+      }
+    }
+    // Clean up empty groups
+    this.splitState.groups = this.splitState.groups.filter(g => g.tabIds.length > 1)
+
+    // Create new group
+    const newGroup: SplitGroup = {
+      id: crypto.randomUUID(),
+      groupId,
+      tabIds: sameGroupTabs,
+      layout: layout || 'horizontal',
+      activePaneIndex,
+      colorIndex: this.getAvailableColorIndex(groupId)
+    }
+
+    if (sameGroupTabs.length > 1) {
+      this.splitState.groups.push(newGroup)
+      this.splitState.activeSplitGroupId = newGroup.id
+    } else {
+      this.splitState.activeSplitGroupId = null
+    }
+
+    this.activeTabId = activeCandidateId
+    this.activeTabPerWorkspace.set(groupId, activeCandidateId)
+
+    if (!this.window || this.window.isDestroyed()) return
+    const activeGroup = this.getActiveSplitGroup()
+    if (activeGroup) {
+      for (const tabId of activeGroup.tabIds) {
+        const tab = this.tabs.get(tabId)
+        if (!tab) continue
+        if (!tab.view) {
+          this.ensureTabView(tab, tab.url)
+        }
+        if (tab.view && !this.window.contentView.children.includes(tab.view)) {
+          this.window.contentView.addChildView(tab.view)
+        }
+        tab.view?.setVisible(true)
+      }
+      for (const tab of this.tabs.values()) {
+        if (!activeGroup.tabIds.includes(tab.id)) {
+          this.detachTabView(tab)
+        }
+      }
+    }
+    
+    this.updateBounds()
+    this.focusSplitPane(activePaneIndex)
+    this.notifyRenderer()
+  }
+
+  exitSplitMode(splitGroupId?: string | null): void {
+    const targetGroupId = splitGroupId || this.splitState.activeSplitGroupId
+    if (!targetGroupId) return
+    
+    const groupIndex = this.splitState.groups.findIndex(g => g.id === targetGroupId)
+    if (groupIndex < 0) return
+    
+    const group = this.splitState.groups[groupIndex]
+    const previousTabIds = [...group.tabIds]
+    const isActive = this.splitState.activeSplitGroupId === targetGroupId
+
+    this.splitState.groups.splice(groupIndex, 1)
+    if (isActive) {
+      this.splitState.activeSplitGroupId = null
+    }
+
+    const fallbackId = (isActive && previousTabIds.length > 0) ? previousTabIds[0] : null
+    const fallbackTab = fallbackId ? this.tabs.get(fallbackId) : undefined
+
+    if (this.window && !this.window.isDestroyed() && isActive) {
+      for (const tabId of previousTabIds) {
+        if (tabId === fallbackId) continue
+        const tab = this.tabs.get(tabId)
+        if (tab) this.detachTabView(tab)
+      }
+    }
+
+    if (fallbackTab && isActive) {
+      this.switchTab(fallbackTab.id)
+    } else {
+      if (isActive && this.activeTabId) {
+        const activeTab = this.tabs.get(this.activeTabId)
+        if (activeTab && activeTab.view) {
+          if (this.window && !this.window.contentView.children.includes(activeTab.view)) {
+            this.window.contentView.addChildView(activeTab.view)
+          }
+        }
+      }
+      this.updateBounds()
+      this.notifyRenderer()
+    }
+  }
+
+  suspendSplitMode(splitGroupId?: string): void {
+    const targetGroupId = splitGroupId || this.splitState.activeSplitGroupId
+    if (!targetGroupId || this.splitState.activeSplitGroupId !== targetGroupId) return
+    
+    const group = this.getActiveSplitGroup()
+    this.splitState.activeSplitGroupId = null
+    
+    if (this.window && !this.window.isDestroyed() && group) {
+      for (const tabId of group.tabIds) {
+        const tab = this.tabs.get(tabId)
+        if (tab) this.detachTabView(tab)
+      }
+    }
+    this.notifyRenderer()
+  }
+
+  resumeSplitMode(activeTabId: string): void {
+    const group = this.getSplitGroupForTab(activeTabId)
+    if (!group) return
+    
+    this.splitState.activeSplitGroupId = group.id
+    
+    const activeIndex = group.tabIds.indexOf(activeTabId)
+    if (activeIndex >= 0) {
+      group.activePaneIndex = activeIndex
+    }
+
+    if (this.window && !this.window.isDestroyed()) {
+      for (const tabId of group.tabIds) {
+        const tab = this.tabs.get(tabId)
+        if (tab && tab.view) {
+          if (this.window && !this.window.contentView.children.includes(tab.view)) {
+            this.window.contentView.addChildView(tab.view)
+          }
+        }
+      }
+    }
+
+    this.updateBounds()
+    this.notifyRenderer()
+    
+    this.focusSplitPane(group.activePaneIndex)
+    this.activeTabId = group.tabIds[group.activePaneIndex]
+    if (group.groupId) {
+      this.activeTabPerWorkspace.set(group.groupId, this.activeTabId)
+    }
+  }
+
+  addTabToSplit(tabId: string, targetGroupId?: string): void {
+    const tab = this.tabs.get(tabId)
+    if (!tab) return
+    
+    let group = targetGroupId ? this.splitState.groups.find(g => g.id === targetGroupId) : this.getActiveSplitGroup()
+    if (!group) return
+    if (group.tabIds.includes(tabId)) return
+    if (group.tabIds.length >= SPLIT_MAX_TABS) return
+
+    if (tab.groupId !== group.groupId) return
+
+    group.tabIds.push(tabId)
+    const nextTabIds = group.tabIds
+    
+    if (this.splitState.activeSplitGroupId !== group.id) {
+      this.resumeSplitMode(tabId)
+    } else {
+      this.updateBounds()
+      this.notifyRenderer()
+      this.setActiveSplitPane(nextTabIds.length - 1)
+    }
+
+    this.activeTabId = tabId
+    this.activeTabPerWorkspace.set(group.groupId, tabId)
+
+    if (!tab.view) {
+      this.ensureTabView(tab, tab.url)
+    }
+    if (this.window && tab.view && !this.window.contentView.children.includes(tab.view)) {
+      this.window.contentView.addChildView(tab.view)
+    }
+    tab.view?.setVisible(true)
+    this.updateBounds()
+    this.focusSplitPane(group.activePaneIndex)
+    this.notifyRenderer()
+  }
+
+  removeTabFromSplit(tabId: string): void {
+    const group = this.getSplitGroupForTab(tabId)
+    if (!group) return
+    
+    group.tabIds = group.tabIds.filter(id => id !== tabId)
+    if (group.tabIds.length <= 1) {
+      this.exitSplitMode(group.id)
+      return
+    }
+    
+    group.activePaneIndex = Math.min(group.activePaneIndex, group.tabIds.length - 1)
+    
+    if (this.splitState.activeSplitGroupId === group.id) {
+      const activeId = group.tabIds[group.activePaneIndex]
+      if (activeId) {
+        this.activeTabId = activeId
+        this.activeTabPerWorkspace.set(group.groupId, activeId)
+      }
+      this.updateBounds()
+      this.focusSplitPane(group.activePaneIndex)
+    }
+    this.notifyRenderer()
+  }
+
+  setSplitLayout(layout: SplitLayout): void {
+    if (!layout) return
+    const activeGroup = this.getActiveSplitGroup()
+    if (!activeGroup) return
+    activeGroup.layout = layout
+    this.updateBounds()
+    this.notifyRenderer()
+  }
+
+  setActiveSplitPane(index: number): void {
+    const activeGroup = this.getActiveSplitGroup()
+    if (!activeGroup) return
+    if (!Number.isFinite(index)) return
+    const clamped = Math.max(0, Math.min(Math.floor(index), activeGroup.tabIds.length - 1))
+    if (clamped === activeGroup.activePaneIndex) return
+    
+    activeGroup.activePaneIndex = clamped
+    const activeId = activeGroup.tabIds[clamped]
+    if (activeId) {
+      this.activeTabId = activeId
+      this.activeTabPerWorkspace.set(activeGroup.groupId, activeId)
+    }
+    this.focusSplitPane(clamped)
+    this.notifyRenderer()
+  }
+
+  createTab(url: string, groupId: string, userAgent: string, enabledShortcuts?: string[]): TabInfo {
     const id = crypto.randomUUID()
 
     const tab: Tab = {
@@ -225,6 +568,8 @@ export class TabManager {
       groupId,
       favicon: '',
       userAgent,
+      enabledShortcuts,
+      pinned: false,
       isCrashed: false,
       isUnresponsive: false,
       isCurrentlyAudible: false
@@ -232,23 +577,59 @@ export class TabManager {
     this.tabs.set(id, tab)
 
     this.ensureTabView(tab, url)
-    this.switchTab(id)
+
+    const activeGroup = this.getActiveSplitGroup()
+    if (activeGroup && activeGroup.groupId === groupId && activeGroup.tabIds.length === 1) {
+      this.addTabToSplit(id)
+    } else {
+      this.switchTab(id)
+    }
+
     this.notifyRenderer()
 
     return this.tabToInfo(tab)
   }
 
-  private resolveNewTabUrl(): string {
-    if (this.rendererUrl) {
-      return new URL('newtab.html', this.rendererUrl).toString()
+  private resolveNewTabUrl(groupId: string, enabledShortcuts?: string[]): string {
+    let base = this.rendererUrl
+      ? new URL('newtab.html', this.rendererUrl).toString()
+      : pathToFileURL(join(__dirname, '../renderer/newtab.html')).toString()
+    const params = new URLSearchParams()
+    params.set('workspace', groupId)
+    if (enabledShortcuts && enabledShortcuts.length > 0) {
+      params.set('shortcuts', enabledShortcuts.join(','))
     }
-    return pathToFileURL(join(__dirname, '../renderer/newtab.html')).toString()
+    const sep = base.includes('?') ? '&' : '?'
+    return `${base}${sep}${params.toString()}`
   }
 
   switchTab(id: string): void {
     if (!this.window || this.window.isDestroyed() || this.tabs.size === 0) return
     const tab = this.tabs.get(id)
     if (!tab) return
+
+    const targetGroup = this.getSplitGroupForTab(id)
+    const activeGroup = this.getActiveSplitGroup()
+
+    if (targetGroup) {
+      if (activeGroup && activeGroup.id === targetGroup.id) {
+        const paneIndex = targetGroup.tabIds.indexOf(id)
+        if (paneIndex >= 0) {
+          this.setActiveSplitPane(paneIndex)
+        }
+        return
+      } else {
+        if (activeGroup) {
+          this.suspendSplitMode(activeGroup.id)
+        }
+        this.resumeSplitMode(id)
+        return
+      }
+    } else {
+      if (activeGroup) {
+        this.suspendSplitMode(activeGroup.id)
+      }
+    }
 
     if (!tab.view) {
       this.ensureTabView(tab, tab.url)
@@ -275,11 +656,17 @@ export class TabManager {
     const tab = this.tabs.get(id)
     if (!tab) return
 
+    const wasInSplit = !!this.getSplitGroupForTab(id)
+
     const groupId = tab.groupId
     const wasActiveForGroup = this.activeTabPerWorkspace.get(groupId) === id
 
     const ordered = Array.from(this.tabs.values())
     const closedIdx = ordered.findIndex(t => t.id === id)
+
+    if (wasInSplit) {
+      this.removeTabFromSplit(id)
+    }
 
     this.detachTabView(tab)
 
@@ -299,13 +686,18 @@ export class TabManager {
       title: tab.title,
       groupId: tab.groupId,
       userAgent: tab.userAgent,
-      favicon: tab.favicon
+      favicon: tab.favicon,
+      pinned: tab.pinned
     })
     if (this.closedTabs.length > CLOSED_TAB_LIMIT) {
       this.closedTabs.shift()
     }
 
     this.closeTabWebContents(tab)
+
+    if (wasInSplit) {
+      return
+    }
 
     if (this.activeTabId === id) {
       const remaining = Array.from(this.tabs.values())
@@ -317,6 +709,9 @@ export class TabManager {
         this.switchTab(candidates[Math.max(0, nextIdx)].id)
       } else {
         this.activeTabId = null
+        const fallbackGroupId = this.activeGroupId || groupId
+        this.createTab('about:blank', fallbackGroupId, '')
+        return
       }
     }
 
@@ -334,6 +729,7 @@ export class TabManager {
       groupId: info.groupId,
       favicon: info.favicon,
       userAgent: info.userAgent,
+      pinned: info.pinned,
       isCrashed: false,
       isUnresponsive: false,
       isCurrentlyAudible: false
@@ -426,6 +822,97 @@ export class TabManager {
     this.getActiveTab()?.view?.webContents.inspectElement(x, y)
   }
 
+  moveTab(id: string, direction: 'up' | 'down'): void {
+    const tab = this.tabs.get(id)
+    if (!tab) return
+    const entries = Array.from(this.tabs.entries())
+    const idx = entries.findIndex(([tid]) => tid === id)
+    if (idx < 0) return
+
+    const targetIdx = direction === 'up' ? idx - 1 : idx + 1
+    if (targetIdx < 0 || targetIdx >= entries.length) return
+
+    entries.splice(idx, 1)
+    entries.splice(targetIdx, 0, [id, tab])
+
+    this.tabs = new Map(entries)
+    this.notifyRenderer()
+  }
+
+  reorderTab(tabId: string, targetIndex: number, targetGroupId?: string): void {
+    const tab = this.tabs.get(tabId)
+    if (!tab) return
+    const entries = Array.from(this.tabs.entries())
+    const idx = entries.findIndex(([tid]) => tid === tabId)
+    if (idx < 0) return
+
+    entries.splice(idx, 1)
+
+    const previousGroupId = tab.groupId
+    if (targetGroupId && targetGroupId !== tab.groupId) {
+      tab.groupId = targetGroupId
+      if (tab.view && tab.view.webContents && !tab.view.webContents.isDestroyed()) {
+        tab.view.webContents.close()
+        tab.view = undefined
+        tab.isCrashed = false
+        tab.isUnresponsive = false
+      }
+      const groupForTab = this.getSplitGroupForTab(tabId)
+      if (groupForTab) {
+        this.removeTabFromSplit(tabId)
+      }
+    }
+
+    const clampedIndex = Math.max(0, Math.min(targetIndex, entries.length))
+    entries.splice(clampedIndex, 0, [tabId, tab])
+
+    this.tabs = new Map(entries)
+
+    const group = this.getSplitGroupForTab(tabId)
+    if (group) {
+      const keys = Array.from(this.tabs.keys())
+      const activeTabIdBefore = group.tabIds[group.activePaneIndex]
+      group.tabIds = group.tabIds.slice().sort((a, b) => keys.indexOf(a) - keys.indexOf(b))
+      if (activeTabIdBefore) {
+        group.activePaneIndex = Math.max(0, group.tabIds.indexOf(activeTabIdBefore))
+      }
+      if (this.splitState.activeSplitGroupId === group.id) {
+        this.updateBounds()
+      }
+    }
+
+    if (tabId === this.activeTabId && targetGroupId && targetGroupId !== previousGroupId) {
+      this.activeTabPerWorkspace.set(targetGroupId, tabId)
+    }
+
+    this.notifyRenderer()
+  }
+
+  pinTab(id: string, pinned: boolean): void {
+    const tab = this.tabs.get(id)
+    if (!tab) return
+    tab.pinned = pinned
+
+    const entries = Array.from(this.tabs.entries())
+    const idx = entries.findIndex(([tid]) => tid === id)
+    if (idx < 0) return
+
+    entries.splice(idx, 1)
+
+    if (pinned) {
+      const lastPinnedIdx = entries.reduce(
+        (last, [, t], i) => (t.pinned ? i : last), -1
+      )
+      entries.splice(lastPinnedIdx + 1, 0, [id, tab])
+    } else {
+      const firstUnpinnedIdx = entries.findIndex(([, t]) => !t.pinned)
+      entries.splice(firstUnpinnedIdx >= 0 ? firstUnpinnedIdx : entries.length, 0, [id, tab])
+    }
+
+    this.tabs = new Map(entries)
+    this.notifyRenderer()
+  }
+
   getSessionData(workspaces: Workspace[], activeGroupId: string): SessionData {
     const activeTabPerWorkspace: Record<string, string | null> = {}
     for (const [groupId, tabId] of this.activeTabPerWorkspace) {
@@ -439,11 +926,16 @@ export class TabManager {
         title: t.title,
         groupId: t.groupId,
         userAgent: t.userAgent,
-        favicon: t.favicon
+        favicon: t.favicon,
+        pinned: t.pinned,
+        folderId: t.folderId
       })),
       activeGroupId,
       activeTabPerWorkspace,
-      sidebarWidth: this.sidebarWidth
+      sidebarWidth: this.sidebarWidth,
+      splitState: this.getSplitStateSnapshot(),
+      tabFolders: this.tabFolders,
+      savedSessions: this.savedSessions
     }
   }
 
@@ -466,6 +958,7 @@ export class TabManager {
       const title = normalizeStoredText(tabData.title, url, 256)
       const favicon = typeof tabData.favicon === 'string' ? tabData.favicon.slice(0, 2048) : ''
       const userAgent = normalizeStoredUserAgent(tabData.userAgent)
+      const pinned = typeof tabData.pinned === 'boolean' ? tabData.pinned : false
 
       const tab: Tab = {
         id,
@@ -474,9 +967,11 @@ export class TabManager {
         groupId,
         favicon,
         userAgent,
+        pinned,
         isCrashed: false,
         isUnresponsive: false,
-        isCurrentlyAudible: false
+        isCurrentlyAudible: false,
+        folderId: tabData.folderId
       }
       this.tabs.set(tab.id, tab)
     }
@@ -513,9 +1008,39 @@ export class TabManager {
       this.switchTab((firstInActiveGroup || Array.from(this.tabs.values())[0]).id)
     }
 
+    if (data.splitState?.groups && Array.isArray(data.splitState.groups)) {
+      this.splitState.groups = data.splitState.groups
+      this.splitState.activeSplitGroupId = data.splitState.activeSplitGroupId || null
+      const activeGroup = this.getActiveSplitGroup()
+      if (activeGroup && activeGroup.tabIds.length > 1) {
+        this.enterSplitMode(activeGroup.tabIds, activeGroup.layout)
+      }
+    }
+
+    if (Array.isArray(data.tabFolders)) this.tabFolders = data.tabFolders
+    if (Array.isArray(data.savedSessions)) this.savedSessions = data.savedSessions
+
     return {
       activeGroupId: groupId,
       activeTabPerWorkspace: data.activeTabPerWorkspace || {}
+    }
+  }
+
+  updateExtraSessionState(payload: any): void {
+    if (Array.isArray(payload.tabFolders)) {
+      this.tabFolders = payload.tabFolders
+    }
+    if (Array.isArray(payload.savedSessions)) {
+      this.savedSessions = payload.savedSessions
+    }
+    if (Array.isArray(payload.tabs)) {
+      for (const tabUpdate of payload.tabs) {
+        const tab = this.tabs.get(tabUpdate.id)
+        if (tab && typeof tabUpdate.folderId !== 'undefined') {
+          tab.folderId = tabUpdate.folderId
+        }
+      }
+      this.notifyRenderer()
     }
   }
 
@@ -561,8 +1086,17 @@ export class TabManager {
 
   notifyRenderer(): void {
     if (!this.rendererNotifier) return
-    const tabs: TabInfo[] = Array.from(this.tabs.values()).map(t => this.tabToInfo(t))
-    this.rendererNotifier({ tabs, activeTabId: this.activeTabId })
+    if (this.notifyRendererTimeout) return
+    this.notifyRendererTimeout = setTimeout(() => {
+      this.notifyRendererTimeout = null
+      if (!this.rendererNotifier) return
+      const tabs: TabInfo[] = Array.from(this.tabs.values()).map(t => this.tabToInfo(t))
+      this.rendererNotifier({
+        tabs,
+        activeTabId: this.activeTabId,
+        splitState: this.getSplitStateSnapshot()
+      })
+    }, 10)
   }
 
   getActiveWebContents(): Electron.WebContents | null {
@@ -571,6 +1105,11 @@ export class TabManager {
   }
 
   private getActiveTab(): Tab | undefined {
+    const activeGroup = this.getActiveSplitGroup()
+    if (activeGroup && activeGroup.tabIds.length > 0) {
+      const activeId = activeGroup.tabIds[activeGroup.activePaneIndex]
+      if (activeId) return this.tabs.get(activeId)
+    }
     if (!this.activeTabId) return undefined
     return this.tabs.get(this.activeTabId)
   }
@@ -583,14 +1122,40 @@ export class TabManager {
       url: normalizeRuntimeUrl(tab.url),
       groupId: tab.groupId,
       favicon: tab.favicon,
+      pinned: tab.pinned,
       canGoBack: !!wc && !wc.isDestroyed() && wc.navigationHistory.canGoBack(),
       canGoForward: !!wc && !wc.isDestroyed() && wc.navigationHistory.canGoForward(),
       isLoading: !!wc && !wc.isDestroyed() && wc.isLoading(),
       isAudioMuted: !!wc && !wc.isDestroyed() && wc.audioMuted,
       isCurrentlyAudible: tab.isCurrentlyAudible,
       isCrashed: tab.isCrashed,
-      isUnresponsive: tab.isUnresponsive
+      isUnresponsive: tab.isUnresponsive,
+      isHibernated: tab.isHibernated || false,
+      folderId: tab.folderId
     }
+  }
+
+  hibernateTab(id: string): void {
+    const tab = this.tabs.get(id)
+    if (!tab || tab.isHibernated) return
+
+    // Don't hibernate the active tab or any tabs in the active split group
+    if (this.activeTabId === id) return
+    const activeGroup = this.getActiveSplitGroup()
+    if (activeGroup && activeGroup.tabIds.includes(id)) return
+
+    if (tab.view && tab.view.webContents && !tab.view.webContents.isDestroyed()) {
+      try {
+        tab.view.webContents.close()
+      } catch (e) {
+        console.warn('Failed to close webContents during hibernation', e)
+      }
+    }
+    
+    this.detachTabView(tab)
+    tab.view = undefined
+    tab.isHibernated = true
+    this.notifyRenderer()
   }
 
   private detachTabView(tab: Tab): void {
@@ -601,12 +1166,106 @@ export class TabManager {
     }
   }
 
+  private calculateSplitBounds(available: { x: number; y: number; width: number; height: number }, activeGroup: SplitGroup): Array<{ x: number; y: number; width: number; height: number }> {
+    const total = activeGroup.tabIds.length
+    if (total === 0) return []
+    const bounds: Array<{ x: number; y: number; width: number; height: number }> = []
+
+    if (activeGroup.layout === 'vertical') {
+      const rowHeight = available.height / total
+      for (let i = 0; i < total; i += 1) {
+        bounds.push({
+          x: available.x,
+          y: available.y + i * rowHeight,
+          width: available.width,
+          height: rowHeight - SPLIT_GAP
+        })
+      }
+      return bounds
+    }
+
+    if (activeGroup.layout === 'grid') {
+      const columns = Math.min(total, 3)
+      const rows = Math.ceil(total / columns)
+      const cellWidth = available.width / columns
+      const cellHeight = available.height / rows
+      for (let i = 0; i < total; i += 1) {
+        const col = i % columns
+        const row = Math.floor(i / columns)
+        bounds.push({
+          x: available.x + col * cellWidth,
+          y: available.y + row * cellHeight,
+          width: cellWidth - SPLIT_GAP,
+          height: cellHeight - SPLIT_GAP
+        })
+      }
+      return bounds
+    }
+
+    const colWidth = available.width / total
+    for (let i = 0; i < total; i += 1) {
+      bounds.push({
+        x: available.x + i * colWidth,
+        y: available.y,
+        width: colWidth - SPLIT_GAP,
+        height: available.height
+      })
+    }
+    return bounds
+  }
+
+  private focusSplitPane(index: number): void {
+    const activeGroup = this.getActiveSplitGroup()
+    if (!activeGroup) return
+    const tabId = activeGroup.tabIds[index]
+    const tab = tabId ? this.tabs.get(tabId) : undefined
+    if (!tab?.view) return
+    if (this.window && !this.window.contentView.children.includes(tab.view)) {
+      this.window.contentView.addChildView(tab.view)
+    }
+    tab.view.setVisible(true)
+    tab.view.webContents.focus()
+  }
+
   private closeTabWebContents(tab: Tab): void {
     if (!tab.view) return
-    if (!tab.view.webContents.isDestroyed()) {
-      tab.view.webContents.close()
+    try {
+      if (tab.view.webContents && !tab.view.webContents.isDestroyed()) {
+        tab.view.webContents.close()
+      }
+    } catch {
+      // view may be in a bad state during cleanup
     }
     tab.view = undefined
+  }
+
+  private clearFaviconFetchTimer(tabId: string): void {
+    const timer = this.faviconFetchTimers.get(tabId)
+    if (timer) {
+      clearTimeout(timer)
+      this.faviconFetchTimers.delete(tabId)
+    }
+  }
+
+  private scheduleFaviconFetch(tab: Tab, url: string): void {
+    if (!this.faviconFetcher) return
+    if (!url || url === 'about:blank') return
+    if (!/^https?:/i.test(url)) return
+    this.clearFaviconFetchTimer(tab.id)
+    const timer = setTimeout(() => {
+      this.faviconFetchTimers.delete(tab.id)
+      if (tab.favicon) return
+      const currentTab = this.tabs.get(tab.id)
+      if (!currentTab || currentTab.favicon) return
+      const fetchUrl = currentTab.url
+      this.faviconFetcher?.(fetchUrl).then((filename) => {
+        const liveTab = this.tabs.get(tab.id)
+        if (!liveTab || liveTab.favicon || !filename) return
+        liveTab.favicon = `media://logos/${filename}`
+        this.notifyRenderer()
+      }).catch(() => { /* swallow */ })
+    }, 1500)
+    this.faviconFetchTimers.set(tab.id, timer)
   }
 
   private showPageContextMenu(tab: Tab, params: ContextMenuParams): void {
@@ -779,19 +1438,138 @@ export class TabManager {
     if (!tab.view) return
     const wc = tab.view.webContents
 
+    // Intercept keyboard shortcuts before Chromium processes them
+    wc.on('input-event', (_event, input) => {
+      const activeGroup = this.getActiveSplitGroup()
+      if (input.type === 'mouseDown' && activeGroup) {
+        const paneIndex = activeGroup.tabIds.indexOf(tab.id)
+        if (paneIndex >= 0 && paneIndex !== activeGroup.activePaneIndex) {
+          this.setActiveSplitPane(paneIndex)
+        }
+      }
+    })
+
+    wc.on('before-input-event', (event, input) => {
+      if (input.type !== 'keyDown') return
+
+      const ctrl = input.control || input.meta
+      const shift = input.shift
+      const key = input.key.toLowerCase()
+
+      if (ctrl && input.alt && key === 'k') {
+        event.preventDefault()
+        this.shortcutNotifier?.('command-palette')
+        return
+      }
+      if (ctrl && key === 'w') {
+        event.preventDefault()
+        setImmediate(() => this.closeTab(tab.id))
+        return
+      }
+      if (ctrl && shift && key === 't') {
+        event.preventDefault()
+        this.restoreClosedTab()
+        return
+      }
+      if (ctrl && key === 't') {
+        event.preventDefault()
+        // Forward to renderer for workspace-aware new tab creation
+        this.shortcutNotifier?.('new-tab')
+        return
+      }
+      if (ctrl && key === 'r') {
+        event.preventDefault()
+        if (tab.view && !tab.view.webContents.isDestroyed()) {
+          tab.view.webContents.reload()
+        }
+        return
+      }
+      if (ctrl && shift && key === 's') {
+        event.preventDefault()
+        this.shortcutNotifier?.('toggle-split')
+        return
+      }
+      if (ctrl && shift && key === 'l') {
+        event.preventDefault()
+        this.shortcutNotifier?.('cycle-split-layout')
+        return
+      }
+      if (ctrl && key === 'f') {
+        event.preventDefault()
+        this.shortcutNotifier?.('find')
+        return
+      }
+      if (ctrl && key === 'j') {
+        event.preventDefault()
+        this.shortcutNotifier?.('downloads')
+        return
+      }
+      if (ctrl && key === 'p') {
+        event.preventDefault()
+        this.shortcutNotifier?.('print')
+        return
+      }
+      if (ctrl && key === 'l') {
+        event.preventDefault()
+        this.shortcutNotifier?.('focus-url')
+        return
+      }
+      if (ctrl && key === 'tab') {
+        event.preventDefault()
+        this.shortcutNotifier?.(shift ? 'prev-tab' : 'next-tab')
+        return
+      }
+      if (ctrl && (key === '=' || key === '+')) {
+        event.preventDefault()
+        this.shortcutNotifier?.('zoom-in')
+        return
+      }
+      if (ctrl && key === '-') {
+        event.preventDefault()
+        this.shortcutNotifier?.('zoom-out')
+        return
+      }
+      if (ctrl && key === '0') {
+        event.preventDefault()
+        this.shortcutNotifier?.('zoom-reset')
+        return
+      }
+      if (ctrl && /^[1-9]$/.test(key)) {
+        event.preventDefault()
+        this.shortcutNotifier?.(`workspace-${key}`)
+        return
+      }
+
+      if (key === 'escape') {
+        event.preventDefault()
+        this.shortcutNotifier?.('escape')
+        return
+      }
+      if (key === 'f5') {
+        event.preventDefault()
+        if (tab.view && !tab.view.webContents.isDestroyed()) {
+          tab.view.webContents.reload()
+        }
+        return
+      }
+    })
+
     wc.on('page-title-updated', (_event, title) => {
       tab.title = title
       this.notifyRenderer()
     })
 
     wc.on('page-favicon-updated', (_event, favicons) => {
+      this.clearFaviconFetchTimer(tab.id)
       tab.favicon = favicons[0] || ''
       this.notifyRenderer()
     })
 
     wc.on('did-navigate', (_event, url) => {
       tab.url = normalizeRuntimeUrl(url)
+      tab.favicon = ''
       this.notifyRenderer()
+      this.scheduleFaviconFetch(tab, url)
     })
 
     wc.on('did-navigate-in-page', (_event, url) => {
@@ -872,13 +1650,14 @@ export class TabManager {
   }
 
   private ensureTabView(tab: Tab, url: string): boolean {
-    if (tab.view && !tab.view.webContents.isDestroyed()) return false
-    if (tab.view && tab.view.webContents.isDestroyed()) {
+    if (tab.view && tab.view.webContents && !tab.view.webContents.isDestroyed()) return false
+    if (tab.view && (!tab.view.webContents || tab.view.webContents.isDestroyed())) {
       tab.view = undefined
     }
 
     const view = new WebContentsView({
       webPreferences: {
+        preload: join(__dirname, '../preload/index.js'),
         partition: `persist:${tab.groupId}`,
         sandbox: true,
         contextIsolation: true,
@@ -886,7 +1665,9 @@ export class TabManager {
       }
     })
 
-    registerSessionDownloads(view.webContents.session)
+    const ses = view.webContents.session
+    registerSessionDownloads(ses)
+    registerMediaProtocol(ses, `persist:${tab.groupId}`)
     view.webContents.backgroundThrottling = true
 
     if (tab.userAgent) {
@@ -897,12 +1678,13 @@ export class TabManager {
     this.bindViewEvents(tab)
 
     const resolvedUrl = (!url || url === 'about:blank')
-      ? this.resolveNewTabUrl()
+      ? this.resolveNewTabUrl(tab.groupId, tab.enabledShortcuts)
       : url
     tab.url = normalizeRuntimeUrl(resolvedUrl)
     tab.isCrashed = false
     tab.isUnresponsive = false
     tab.isCurrentlyAudible = false
+    tab.isHibernated = false
     view.webContents.loadURL(resolvedUrl)
     return true
   }

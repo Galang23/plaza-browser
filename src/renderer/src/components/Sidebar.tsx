@@ -1,6 +1,21 @@
 import { useRef, useCallback, useEffect } from 'react'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy
+} from '@dnd-kit/sortable'
 import { useStore } from '../store/useStore'
 import { SidebarTab } from './SidebarTab'
+import { SidebarFolder } from './SidebarFolder'
 import { separator, showNativeContextMenu } from '../utils/nativeContextMenu'
 
 export function Sidebar() {
@@ -9,10 +24,33 @@ export function Sidebar() {
   const sidebarWidth = useStore((s) => s.sidebarWidth)
   const setSidebarWidth = useStore((s) => s.setSidebarWidth)
   const workspaces = useStore((s) => s.workspaces)
+  const tabFolders = useStore((s) => s.tabFolders)
+  const clearTabSelection = useStore((s) => s.clearTabSelection)
   const resizing = useRef(false)
   const dragAbortRef = useRef<AbortController | null>(null)
 
-  const filteredTabs = tabs.filter((t) => t.groupId === activeGroupId)
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
+
+  const filteredTabs = tabs
+    .filter((t) => t.groupId === activeGroupId)
+    .sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
+      return 0
+    })
+
+  const handleTabDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const oldIndex = filteredTabs.findIndex(t => t.id === active.id)
+    const newIndex = filteredTabs.findIndex(t => t.id === over.id)
+    if (oldIndex < 0 || newIndex < 0) return
+
+    window.electron.reorderTab(active.id as string, newIndex)
+  }, [filteredTabs])
   const workspace = workspaces.find((w) => w.id === activeGroupId)
   const accentStyle = { ['--ws-accent' as string]: workspace?.color || 'var(--accent-primary)' }
 
@@ -106,26 +144,42 @@ export function Sidebar() {
 
   return (
     <>
-      <div className="sidebar" style={{ width: sidebarWidth, '--sidebar-width': `${sidebarWidth}px`, ...accentStyle } as React.CSSProperties}>
+        <div
+          className="sidebar"
+          style={{ width: sidebarWidth, '--sidebar-width': `${sidebarWidth}px`, ...accentStyle } as React.CSSProperties}
+          onClick={() => clearTabSelection()}
+        >
         <div className="sidebar-header" onContextMenu={handleHeaderContextMenu}>
-          <span className="sidebar-header-title">{workspace?.name || 'Tabs'}</span>
+          <div className="sidebar-header-left">
+            <img src="media://apple-touch-icon.png" className="sidebar-header-icon" alt="Plaza Browser Icon" />
+            <span className="sidebar-header-title">{workspace?.name || 'Tabs'}</span>
+          </div>
         </div>
         {filteredTabs.length > 0 ? (
-          <>
-            {filteredTabs.map((tab) => (
-              <SidebarTab key={tab.id} tabId={tab.id} />
-            ))}
-            <div className="sidebar-new-tab-inline" onClick={handleNewTab}>
-              <span className="sidebar-new-tab-icon">+</span>
-              <span className="sidebar-new-tab-label">New Tab</span>
-            </div>
-          </>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleTabDragEnd}>
+            <SortableContext items={filteredTabs.map(t => t.id)} strategy={verticalListSortingStrategy}>
+              {tabFolders.filter(f => f.workspaceId === activeGroupId).map(folder => (
+                <SidebarFolder key={folder.id} folder={folder}>
+                  {filteredTabs.filter(t => t.folderId === folder.id).map((tab) => (
+                    <SidebarTab key={tab.id} tabId={tab.id} />
+                  ))}
+                </SidebarFolder>
+              ))}
+              {filteredTabs.filter(t => !t.folderId).map((tab) => (
+                <SidebarTab key={tab.id} tabId={tab.id} />
+              ))}
+            </SortableContext>
+          </DndContext>
         ) : (
           <div className="sidebar-empty" onClick={handleNewTab} onContextMenu={handleEmptyContextMenu}>
             <span>No tabs yet</span>
             <span className="sidebar-empty-action">Click to create one</span>
           </div>
         )}
+        <div className="sidebar-new-tab-inline" onClick={handleNewTab}>
+          <span className="sidebar-new-tab-icon">+</span>
+          <span className="sidebar-new-tab-label">New Tab</span>
+        </div>
       </div>
       <div
         className="sidebar-resize-handle"

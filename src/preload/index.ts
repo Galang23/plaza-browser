@@ -1,9 +1,21 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { TabInfo, DownloadInfo, Workspace } from '../renderer/src/types'
+import type { TabInfo, DownloadInfo, Workspace, SplitState, ShortcutPreset, TabFolder, SavedSession } from '../renderer/src/types'
 
 const api = {
   createTab: (url: string, groupId: string, userAgent: string): Promise<TabInfo> =>
     ipcRenderer.invoke('tab:create', url, groupId, userAgent),
+
+  moveTab: (id: string, direction: 'up' | 'down'): Promise<void> =>
+    ipcRenderer.invoke('tab:move', id, direction),
+
+  reorderTab: (tabId: string, targetIndex: number, targetGroupId?: string): Promise<void> =>
+    ipcRenderer.invoke('tab:reorder', tabId, targetIndex, targetGroupId),
+
+  pinTab: (id: string, pinned: boolean): Promise<void> =>
+    ipcRenderer.invoke('tab:pin', id, pinned),
+
+  hibernateTab: (id: string): Promise<void> =>
+    ipcRenderer.invoke('tab:hibernate', id),
 
   switchTab: (id: string): Promise<void> =>
     ipcRenderer.invoke('tab:switch', id),
@@ -13,6 +25,30 @@ const api = {
 
   restoreClosedTab: (): Promise<TabInfo | null> =>
     ipcRenderer.invoke('tab:restore-closed'),
+
+  enterSplitMode: (tabIds: string[], layout?: 'horizontal' | 'vertical' | 'grid'): Promise<void> =>
+    ipcRenderer.invoke('split:enter', tabIds, layout),
+
+  exitSplitMode: (splitGroupId?: string): Promise<void> =>
+    ipcRenderer.invoke('split:exit', splitGroupId),
+
+  addTabToSplit: (tabId: string): Promise<void> =>
+    ipcRenderer.invoke('split:add-tab', tabId),
+
+  removeTabFromSplit: (tabId: string): Promise<void> =>
+    ipcRenderer.invoke('split:remove-tab', tabId),
+
+  suspendSplitMode: (splitGroupId?: string): Promise<void> =>
+    ipcRenderer.invoke('split:suspend', splitGroupId),
+
+  resumeSplitMode: (activeTabId: string): Promise<void> =>
+    ipcRenderer.invoke('split:resume', activeTabId),
+
+  setSplitLayout: (layout: 'horizontal' | 'vertical' | 'grid'): Promise<void> =>
+    ipcRenderer.invoke('split:set-layout', layout),
+
+  setActiveSplitPane: (index: number): Promise<void> =>
+    ipcRenderer.invoke('split:set-active-pane', index),
 
   navigateBack: (): Promise<void> =>
     ipcRenderer.invoke('nav:back'),
@@ -70,11 +106,18 @@ const api = {
     activeGroupId: string
     activeTabPerWorkspace: Record<string, string | null>
     sidebarWidth: number
+    globalShortcuts?: ShortcutPreset[]
+    splitState?: SplitState
+    tabFolders?: TabFolder[]
+    savedSessions?: SavedSession[]
   }> =>
     ipcRenderer.invoke('session:get-state'),
 
-  onTabsUpdated: (cb: (data: { tabs: TabInfo[]; activeTabId: string | null }) => void): (() => void) => {
-    const handler = (_event: any, data: { tabs: TabInfo[]; activeTabId: string | null }) => cb(data)
+  updateSessionState: (payload: Record<string, unknown>): Promise<void> =>
+    ipcRenderer.invoke('session:update', payload),
+
+  onTabsUpdated: (cb: (data: { tabs: TabInfo[]; activeTabId: string | null; splitState?: SplitState }) => void): (() => void) => {
+    const handler = (_event: any, data: any) => cb(data)
     ipcRenderer.on('tabs:updated', handler)
     return () => ipcRenderer.removeListener('tabs:updated', handler)
   },
@@ -89,6 +132,12 @@ const api = {
     const handler = (_event: any, list: DownloadInfo[]) => cb(list)
     ipcRenderer.on('downloads:updated', handler)
     return () => ipcRenderer.removeListener('downloads:updated', handler)
+  },
+
+  onKeyboardShortcut: (cb: (action: string) => void): (() => void) => {
+    const handler = (_event: any, action: string) => cb(action)
+    ipcRenderer.on('shortcut:forward', handler)
+    return () => ipcRenderer.removeListener('shortcut:forward', handler)
   },
 
   executePageAction: (action: string): Promise<void> =>
@@ -109,6 +158,13 @@ const api = {
     separator?: boolean
     disabled?: boolean
     shortcut?: string
+    submenu?: Array<{
+      id?: string
+      label?: string
+      separator?: boolean
+      disabled?: boolean
+      shortcut?: string
+    }>
   }>, x: number, y: number): Promise<string | null> =>
     ipcRenderer.invoke('context-menu:show', items, x, y),
 
@@ -117,6 +173,8 @@ const api = {
     activeGroupId: string
     activeTabPerWorkspace: Record<string, string | null>
     sidebarWidth: number
+    globalShortcuts?: ShortcutPreset[]
+    splitState?: SplitState
   }) => void): (() => void) => {
     const handler = (_event: any, data: any) => cb(data)
     ipcRenderer.on('session:restore', handler)
@@ -135,8 +193,29 @@ const api = {
   updatePopoverWorkspace: (workspaceId: string, updates: Partial<Workspace>): Promise<void> =>
     ipcRenderer.invoke('popover:update-workspace', workspaceId, updates),
 
+  manageShortcuts: (workspaceId: string): Promise<string | null> =>
+    ipcRenderer.invoke('popover:manage-services', workspaceId),
+
   notifyPopoverReady: (size: { width: number; height: number }): Promise<void> =>
-    ipcRenderer.invoke('popover:ready', size)
+    ipcRenderer.invoke('popover:ready', size),
+
+  getGlobalShortcuts: (): Promise<ShortcutPreset[] | null> =>
+    ipcRenderer.invoke('global-services:get'),
+
+  syncGlobalShortcuts: (shortcuts: ShortcutPreset[]): Promise<void> =>
+    ipcRenderer.invoke('global-services:sync', shortcuts),
+
+  importLogoFromUrl: (url: string): Promise<string> =>
+    ipcRenderer.invoke('logo:import-url', url),
+
+  importLogoFromFile: (): Promise<string | null> =>
+    ipcRenderer.invoke('logo:import-file'),
+
+  getLogoPath: (filename: string): Promise<string> =>
+    ipcRenderer.invoke('logo:get-path', filename),
+
+  fetchFavicon: (url: string): Promise<string | null> =>
+    ipcRenderer.invoke('favicon:fetch', url)
 }
 
 contextBridge.exposeInMainWorld('electron', api)

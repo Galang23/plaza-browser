@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import type { TabInfo, Workspace } from '../types'
+import type { TabInfo, Workspace, DownloadInfo, ShortcutPreset, SplitState, SplitLayout, SavedSession, TabFolder } from '../types'
+import { DEFAULT_SHORTCUTS, DEFAULT_WORKSPACES } from '../defaults'
 
 interface AppState {
   tabs: TabInfo[]
@@ -7,6 +8,8 @@ interface AppState {
   activeTabId: string | null
   activeGroupId: string
   activeTabPerWorkspace: Record<string, string | null>
+  splitState: SplitState
+  selectedTabIds: string[]
 
   sidebarWidth: number
   showFind: boolean
@@ -15,12 +18,21 @@ interface AppState {
   findOptions: { forward: boolean }
 
   urlBarValue: string
+  zoomLevel: number
+  downloads: DownloadInfo[]
+  showDownloads: boolean
+  showTabSearch: boolean
+
+  globalShortcuts: ShortcutPreset[]
+  savedSessions: SavedSession[]
+  tabFolders: TabFolder[]
 
   setTabs: (tabs: TabInfo[]) => void
   setActiveTabId: (id: string | null) => void
 
   setActiveGroupId: (id: string) => void
   addWorkspace: (name: string) => void
+  reorderWorkspaces: (orderedIds: string[]) => void
   removeWorkspace: (id: string) => Promise<void>
   updateWorkspace: (id: string, updates: Partial<Workspace>) => void
 
@@ -33,24 +45,50 @@ interface AppState {
 
   setUrlBarValue: (val: string) => void
   setActiveTabPerWorkspace: (data: Record<string, string | null>) => void
+  setZoomLevel: (level: number) => void
+  setDownloads: (list: DownloadInfo[]) => void
+  setShowDownloads: (show: boolean) => void
+  setShowTabSearch: (show: boolean) => void
+  setSplitState: (state: SplitState) => void
+  enterSplitMode: (tabIds: string[], layout?: SplitLayout) => void
+  exitSplitMode: (splitGroupId?: string) => void
+  suspendSplitMode: (splitGroupId?: string) => void
+  resumeSplitMode: (activeTabId: string) => void
+  addTabToSplit: (tabId: string) => void
+  removeTabFromSplit: (tabId: string) => void
+  setSplitLayout: (layout: SplitLayout) => void
+  setActiveSplitPane: (index: number) => void
+  setSelectedTabIds: (ids: string[]) => void
+  toggleTabSelection: (id: string, additive: boolean) => void
+  clearTabSelection: () => void
+  saveSession: (name: string, tabs: { title: string; url: string; favicon?: string }[]) => void
+  createFolder: (workspaceId: string, name: string) => string
+  toggleFolderCollapse: (folderId: string) => void
+  setTabFolder: (tabId: string, folderId: string | undefined) => void
+  renameFolder: (folderId: string, name: string) => void
+  setFolderColor: (folderId: string, color: string) => void
+  deleteFolder: (folderId: string) => void
+
+  setGlobalShortcuts: (shortcuts: ShortcutPreset[]) => void
 
   hydrateFromSession: (data: {
     workspaces: Workspace[]
     activeGroupId: string
     activeTabPerWorkspace: Record<string, string | null>
     sidebarWidth: number
+    globalShortcuts?: ShortcutPreset[]
+    splitState?: SplitState
   }) => void
 }
 
 export const useStore = create<AppState>()((set, get) => ({
   tabs: [],
-  workspaces: [
-    { id: 'default', name: 'Default', userAgent: '', emoji: '', color: '' },
-    { id: 'work', name: 'Work', userAgent: '', emoji: '', color: '' }
-  ],
+  workspaces: DEFAULT_WORKSPACES,
   activeTabId: null,
   activeGroupId: 'default',
   activeTabPerWorkspace: {},
+  splitState: { groups: [], activeSplitGroupId: null },
+  selectedTabIds: [],
 
   sidebarWidth: 250,
   showFind: false,
@@ -59,13 +97,21 @@ export const useStore = create<AppState>()((set, get) => ({
   findOptions: { forward: true },
 
   urlBarValue: '',
+  zoomLevel: 0,
+  downloads: [],
+  showDownloads: false,
+  showTabSearch: false,
+
+  globalShortcuts: DEFAULT_SHORTCUTS,
+  savedSessions: [],
+  tabFolders: [],
 
   setTabs: (tabs) => set({ tabs }),
   setActiveTabId: (id) => set({ activeTabId: id }),
 
   setActiveGroupId: (id) => {
     const prev = get().activeGroupId
-    set({ activeGroupId: id })
+    set({ activeGroupId: id, selectedTabIds: [] })
     const ws = get().workspaces
     window.electron.syncWorkspaces(ws, id)
     if (id !== prev) {
@@ -88,6 +134,15 @@ export const useStore = create<AppState>()((set, get) => ({
   addWorkspace: (name) =>
     set((state) => {
       const updated = [...state.workspaces, { id: crypto.randomUUID(), name, userAgent: '', emoji: '', color: '' }]
+      window.electron.syncWorkspaces(updated, state.activeGroupId)
+      return { workspaces: updated }
+    }),
+  reorderWorkspaces: (orderedIds: string[]) =>
+    set((state) => {
+      const map = new Map(state.workspaces.map(w => [w.id, w]))
+      const ordered = orderedIds.map(id => map.get(id)).filter(Boolean) as Workspace[]
+      const remaining = state.workspaces.filter(w => !orderedIds.includes(w.id))
+      const updated = [...ordered, ...remaining]
       window.electron.syncWorkspaces(updated, state.activeGroupId)
       return { workspaces: updated }
     }),
@@ -135,6 +190,145 @@ export const useStore = create<AppState>()((set, get) => ({
 
   setUrlBarValue: (val) => set({ urlBarValue: val }),
   setActiveTabPerWorkspace: (data) => set({ activeTabPerWorkspace: data }),
+  setZoomLevel: (level) => set({ zoomLevel: Math.max(-9, Math.min(9, level)) }),
+  setDownloads: (list) => set({ downloads: list }),
+  setShowDownloads: (show) => set({ showDownloads: show }),
+  setShowTabSearch: (show) => set({ showTabSearch: show }),
+  setSplitState: (state) => set({ splitState: state }),
+  enterSplitMode: (tabIds, layout) => {
+    window.electron.enterSplitMode(tabIds, layout)
+  },
+  exitSplitMode: (splitGroupId) => {
+    window.electron.exitSplitMode(splitGroupId)
+  },
+  suspendSplitMode: (splitGroupId) => {
+    window.electron.suspendSplitMode(splitGroupId)
+  },
+  resumeSplitMode: (activeTabId: string) => {
+    window.electron.resumeSplitMode(activeTabId)
+  },
+  addTabToSplit: (tabId) => {
+    window.electron.addTabToSplit(tabId)
+  },
+  removeTabFromSplit: (tabId) => {
+    window.electron.removeTabFromSplit(tabId)
+  },
+  setSplitLayout: (layout) => {
+    window.electron.setSplitLayout(layout)
+  },
+  setActiveSplitPane: (index) => {
+    window.electron.setActiveSplitPane(index)
+  },
+  setSelectedTabIds: (ids) => set({ selectedTabIds: ids }),
+  toggleTabSelection: (id, additive) =>
+    set((state) => {
+      if (!additive) return { selectedTabIds: [id] }
+      const exists = state.selectedTabIds.includes(id)
+      const next = exists
+        ? state.selectedTabIds.filter((tabId) => tabId !== id)
+        : [...state.selectedTabIds, id]
+      return { selectedTabIds: next }
+    }),
+  clearTabSelection: () => set({ selectedTabIds: [] }),
+  saveSession: (name, tabs) => {
+    set((state) => {
+      const newSession: SavedSession = {
+        id: crypto.randomUUID(),
+        name,
+        tabs
+      }
+      const updated = { savedSessions: [...state.savedSessions, newSession] }
+      window.electron.updateSessionState({ savedSessions: updated.savedSessions })
+      return updated
+    })
+  },
+
+  createFolder: (workspaceId, name) => {
+    const id = crypto.randomUUID()
+    set((state) => {
+      const COLORS = ['#e94560', '#3498db', '#f1c40f', '#2ecc71', '#9b59b6']
+      const color = COLORS[state.tabFolders.length % COLORS.length]
+      const newFolder: TabFolder = {
+        id,
+        workspaceId,
+        name,
+        color,
+        collapsed: false
+      }
+      const updated = { tabFolders: [...state.tabFolders, newFolder] }
+      window.electron.updateSessionState({ tabFolders: updated.tabFolders })
+      return updated
+    })
+    return id
+  },
+  toggleFolderCollapse: (folderId) => {
+    set((state) => {
+      const updated = {
+        tabFolders: state.tabFolders.map(f => f.id === folderId ? { ...f, collapsed: !f.collapsed } : f)
+      }
+      window.electron.updateSessionState({ tabFolders: updated.tabFolders })
+      return updated
+    })
+  },
+  setTabFolder: (tabId, folderId) => {
+    set((state) => {
+      const tab = state.tabs.find(t => t.id === tabId)
+      if (tab && tab.folderId !== folderId) {
+        const updatedTabs = state.tabs.map(t => t.id === tabId ? { ...t, folderId } : t)
+        window.electron.updateSessionState({ tabs: updatedTabs.map(t => ({ id: t.id, folderId: t.folderId })) })
+        return { tabs: updatedTabs }
+      }
+      return state
+    })
+  },
+
+  renameFolder: (folderId, name) => {
+    const trimmed = name.trim().slice(0, 80)
+    if (!trimmed) return
+    set((state) => {
+      const target = state.tabFolders.find(f => f.id === folderId)
+      if (!target || target.name === trimmed) return state
+      const updated = {
+        tabFolders: state.tabFolders.map(f => f.id === folderId ? { ...f, name: trimmed } : f)
+      }
+      window.electron.updateSessionState({ tabFolders: updated.tabFolders })
+      return updated
+    })
+  },
+
+  setFolderColor: (folderId, color) => {
+    if (typeof color !== 'string' || !/^#[0-9a-fA-F]{3,8}$/.test(color)) return
+    set((state) => {
+      const target = state.tabFolders.find(f => f.id === folderId)
+      if (!target || target.color === color) return state
+      const updated = {
+        tabFolders: state.tabFolders.map(f => f.id === folderId ? { ...f, color } : f)
+      }
+      window.electron.updateSessionState({ tabFolders: updated.tabFolders })
+      return updated
+    })
+  },
+
+  deleteFolder: (folderId) => {
+    set((state) => {
+      if (!state.tabFolders.some(f => f.id === folderId)) return state
+      const updatedFolders = { tabFolders: state.tabFolders.filter(f => f.id !== folderId) }
+      const tabsInFolder = state.tabs.filter(t => t.folderId === folderId)
+      const updatedTabs = tabsInFolder.length > 0
+        ? { tabs: state.tabs.map(t => t.folderId === folderId ? { ...t, folderId: undefined } : t) }
+        : null
+      window.electron.updateSessionState({
+        tabFolders: updatedFolders.tabFolders,
+        ...(updatedTabs ? { tabs: updatedTabs.tabs.map(t => ({ id: t.id, folderId: t.folderId })) } : {})
+      })
+      return { ...updatedFolders, ...(updatedTabs || {}) }
+    })
+  },
+
+  setGlobalShortcuts: (shortcuts) => {
+    set({ globalShortcuts: shortcuts })
+    window.electron.syncGlobalShortcuts(shortcuts)
+  },
 
   hydrateFromSession: (data) =>
     set({
@@ -147,6 +341,8 @@ export const useStore = create<AppState>()((set, get) => ({
         : get().workspaces,
       activeGroupId: data.activeGroupId || 'default',
       activeTabPerWorkspace: data.activeTabPerWorkspace || {},
-      sidebarWidth: data.sidebarWidth || 250
+      sidebarWidth: data.sidebarWidth || 250,
+      globalShortcuts: Array.isArray(data.globalShortcuts) ? data.globalShortcuts : get().globalShortcuts,
+      splitState: data.splitState || get().splitState
     })
 }))

@@ -1,0 +1,142 @@
+.sessions-grid-container {
+  margin-top: 40px;
+  width: 100%;
+  max-width: 900px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.sessions-heading {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--text-primary, #e0e0e0);
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border-color, #333);
+  padding-bottom: 8px;
+}
+
+.sessions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.session-card {
+  background: var(--bg-secondary, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+  backdrop-filter: blur(10px);
+}
+
+.session-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  border-color: var(--accent-primary, #e94560);
+}
+
+.session-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.session-name {
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--text-primary, #fff);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-delete-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #888);
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+  border-radius: 4px;
+  transition: color 0.2s, background 0.2s;
+}
+
+.session-delete-btn:hover {
+  color: #ff4d4d;
+  background: rgba(255, 77, 77, 0.1);
+}
+
+.session-tabs-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 10px;
+  border-radius: 8px;
+}
+
+.session-tab-preview-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+.session-tab-favicon, .session-tab-favicon-fallback {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.session-tab-favicon-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+}
+
+.session-tab-title {
+  color: var(--text-secondary, #bbb);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-tabs-more {
+  font-size: 0.8rem;
+  color: var(--text-muted, #888);
+  text-align: center;
+  margin-top: 4px;
+  font-style: italic;
+}
+
+.session-card-actions {
+  margin-top: auto;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.session-restore-btn {
+  background: var(--accent-primary, #e94560);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.session-restore-btn:hover {
+  background: color-mix(in srgb, var(--accent-primary, #e94560) 80%, white);
+}
+
+.session-restore-btn:active {
+  transform: scale(0.97);
+}
