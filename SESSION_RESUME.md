@@ -1,14 +1,14 @@
-# Session Resume — Plaza Browser QoL Work
+# Session Resume — Plaza Browser v4.2 Finalization
 
 **Date**: 2026-06-16
 **Branch**: main
-**Goal**: Bring plaza-browser (the upstream engine) up to chat-plaza's feature parity, with a focus on QoL improvements. Per the user's standing rule, plaza-browser should be updated first and chat-plaza rebases onto it.
+**Goal**: Finalize the v4 enhancement proposal (v4.2) for plaza-browser, ship it as the official v1.3.0 checkpoint, and prepare for v1.4.0 implementation. Code state remains at v1.2.1; v1.3.0 is a documentation-only checkpoint that adopts the proposal.
 
 ---
 
 ## Context
 
-plaza-browser (this repo) is the **base engine** for the downstream **chat-plaza** project at `/home/adhi/Dokumen/projects/chat-plaza`. chat-plaza v1.8.0 has more features (better folder UX, global services registry, saved sessions, favicon fetching, backgrounds). The user wants plaza-browser to be a **strict superset** so chat-plaza can rebase trivially.
+plaza-browser is the **base engine** for the downstream `chat-plaza` project. After several rounds of "real QoL" proposals (v1 → v2 → v3 → v4), this session finalized **v4.2** — a deliberately small, honest, version-disciplined slate of 24 features grouped into 3 minor releases + 1 major.
 
 **Package manager**: `bun` only. `bun install`, `bun run dev`, `bun run build`.
 **Build target**: Electron 42 + React 19 + Zustand 5 + TypeScript 5.8 + Vite 6 (via electron-vite).
@@ -18,96 +18,172 @@ plaza-browser (this repo) is the **base engine** for the downstream **chat-plaza
 
 ## What Was Done (in order)
 
-### Phase 1 — Audit
-- Compared plaza-browser (v1.2.1) with chat-plaza (v1.8.0). AGENTS.md was severely out of date — it documented plaza-browser as missing many features that were already implemented (split view, hibernation, multi-select, saved sessions, favicon fetching, per-workspace backgrounds, global shortcuts registry, popover workspace settings).
-- Wrote the initial Tier 1 plan to AGENTS.md. User said "proceed" with it.
+### Phase 1 — Proposal evolution (v3 → v4 → v4.1 → v4.2)
 
-### Phase 2 — Tier 1: actual deltas
-Audit revealed most Tier 1 items were already done. Real remaining work:
-1. **Popover background controls** (`src/renderer/src/popover.ts`, `popover.css`) — added "Select Image…" button, clear (✕) button, and opacity slider (0–1). Calls `importLogoFromFile` + `updatePopoverWorkspace`.
-2. **`index.html` title** — `"AI Hub Elec2"` → `"Plaza Browser"`.
-3. **`env.d.ts` backfill** — declared all preload methods (split:*, hibernate, manageShortcuts, importLogoFrom*, getLogoPath, fetchFavicon, etc.). Fixed two pre-existing type errors: `SearchBar.tsx` had an unused `ServicePreset` import; `SessionsGrid.tsx` had a 4-arg `createTab` call.
-4. **AGENTS.md rewrite** — replaced the plan with accurate codebase documentation covering split view, multi-select, hibernation, folders, saved sessions, custom logos, favicon fetching, popover system, global shortcuts registry, per-workspace backgrounds.
+The user had already committed to "no more general browser feature race" — Plaza is engine QoL, not Firefox/Brave parity. We started by comparing v3 with the v3-evaluation doc to identify what v3 lost and what to keep.
 
-### Phase 3 — Finish the folder stubs
-Folders had three context menu items all disabled with "Coming Soon": Rename, Change Color, Delete. chat-plaza had the same stubs.
-- **Store** (`useStore.ts`): added `renameFolder`, `setFolderColor`, `deleteFolder` actions, all persisting via `updateSessionState`.
-- **`SidebarFolder.tsx`**: full rewrite with inline rename input (Enter to commit, Esc to cancel, blur to commit, 80-char max), color submenu (5 colors, ✓ for current), delete confirmation, close all tabs in group. New state for rename input + ref for autofocus.
-- **`SidebarTab.tsx`**: added "Move to Group" submenu (lists all folders in current workspace) and "Remove from Group" item (only shown when tab is in a folder). Multi-select "Group N Tabs" still works.
-- **`utils/nativeContextMenu.ts`** + **`main/index.ts`** + **`preload/index.ts`** + **`env.d.ts`**: extended `NativeContextMenuItem` to support `submenu: NativeContextMenuItem[]`. The main process `showNativeContextMenu` now recurses on submenus. This is a small but real architectural addition used by both "Change Color" (folder) and "Move to Group" (tab).
-- **`SidebarFolder.css`**: added `.sidebar-folder-rename-input` styles.
+**v4 (initial draft)**: 28 features. Reuse framework extended with a 4th mode (Defer). ChatPlaza framing added (dedicated §3.4 + §28 contract). Dedicated CVE-2026-34780 §4.
 
-### Phase 4 — Logo and favicon fixes
-User reported: workspace bar/tab bar logo as broken image, gear icon not rendering, pinned sites favicon not showing on new tab page.
+**v4.1 (after first round of user pushback)**:
+- AI assistant panel (§12) deferred indefinitely. It was the only consumer pulling in safeStorage Linux fallback.
+- ChatPlaza items (§26 multi-AI session handoff, §27 send-to-chat, §28 payload contract) dropped — they belong in `chat-plaza`, not the engine. AGENTS.md already states the principle.
+- §19 safeStorage generalized to a **secret-storage wrapper** for any future consumer (AI keys when §12 returns, workspace export passwords, sync keys, etc.).
+- §8 multi-window → v2.0.0 (singleton-to-per-instance TabManager refactor + `session.json` schema migration = breaking).
+- §20 content blocker → v2.0.0 (per-partition registration is invasive; bundles with §8 unless additive).
+- §22 permissions UI in both sidebar panel AND popover.
 
-**Root causes (three separate bugs):**
+**v4.2 (after second round of user pushback — the most important round)**:
+- User asked the critical question: "what's the use of right side bar?" and the answer was: three of the four planned panels (outline, reading list, permissions) have better homes, and the dock was the densest integration knot in v4 (v3-eval §3.2.1).
+- §9 right sidebar dock **dropped entirely**.
+- §10 page outline panel **dropped entirely** (useful for long-form reading, not core to a workspace/tab engine).
+- §12 reading list relocated to **`about:reading-list`** — new internal route mirroring the `about:` scheme that `canLoadUrl` (`src/main/index.ts:115`) already accepts and the `newtab.html` file-loading pattern in `tabManager.ts:594`. Reachable from the new tab page's **Continue Reading** section and from the address bar.
+- §17 site permissions relocated: popover anchored to a new **site-info** button next to the address bar (Chrome `🔒` pattern) + **Permissions** tab in the new settings page.
+- §23 dedicated settings page added — new `settings.html` reachable at `about:settings`. Canonical home for every v4 setting. Lands in v1.4.x.
+- §24 about page added — new `about.html` reachable at `about:about`. Shows app version, build date, dependency versions, license, docs links. Lands in v1.4.x.
 
-1. **`media://` protocol not registered on default session** — only registered on tab partitions (`persist:${groupId}`) via `tabManager.ensureTabView`. The UI view and popover view use the default session. **Fix**: added `registerMediaProtocol(session.defaultSession, 'default')` and `setLogoResolver(...)` to `app.whenReady().then(...)` in `src/main/index.ts` (before `createWindow()`). Removed duplicate `setLogoResolver` from `setupIPC`.
+**Final slate: 24 features, 3 minor releases + 1 major.**
 
-2. **CSP missing `media:` in `img-src`** — `index.html` and `popover.html` had `img-src 'self' https: data:` but **not** `media:`. The protocol handler was being called but the browser refused to render the response because the CSP blocked it. Newtab worked because its CSP included `media:`. **Fix**: added `media:` and `file:` to `img-src` in `index.html` and `popover.html`.
+### Phase 2 — Research: SemVer for Electron desktop apps
 
-3. **Logo size too small to see icon details** — bumped workspace-strip logo 18→22px, sidebar header 15→18px, tab favicon 16→18px (all in `App.css`).
+User asked "if we add significant features, what version?" — open question. Researched VS Code, Discord, Slack, Obsidian, Notion, Brave, Firefox versioning practices via Tavily. Industry consensus: **major segment is the "breakage flag"** — kept static for years. Reserved for true breaking changes (IPC renames, schema migrations, preload surface, singleton refactors). Minor = additive features. Patch = bug fixes.
 
-4. **Gear icon was a `&#9881;` Unicode character** — rendered as nothing visible at 11px font + 0.6 opacity. **Fix**: replaced with a 12×12 inline SVG gear (lucide-style stroke design). Added `title` and `aria-label` for accessibility.
+Codified in `AGENTS.md` §Versioning as: *"a feature stays on v1.x unless it requires breaking IPC changes, `session.json` schema migration, preload-surface changes, or singleton-to-per-instance refactors. Any of those = major bump (v2.0.0)."*
 
-5. **Favicon fetch fallback** — `page-favicon-updated` doesn't fire for sites with inline data-URL favicons or no `<link rel="icon">`. The `fetchFavicon` IPC existed but was never called. **Fix**: added `setFaviconFetcher` callback to `TabManager`, called from `index.ts` with `fetchFaviconForUrl`. On `did-navigate`, `tab.favicon` is cleared and a 1.5s timer is scheduled. If `page-favicon-updated` fires first, the timer is cancelled. After 1.5s, if no favicon arrived, `fetchFaviconForUrl(tab.url)` runs and the result is written to `tab.favicon` as `media://logos/<filename>`. Timer cleanup in `closeAllTabs` and on favicon arrival.
+### Phase 3 — Snapshot commit + tag v1.3.0
 
-### Phase 5 — Pinned sites favicon on new tab page
-User clarified: the pinned sites favicon is the **service card** on the new tab page (not sidebar pinned tabs). `ServiceCard.tsx` was only showing emoji, never auto-fetching the favicon.
+User requested manual execution of git commands. Three files staged: `docs/plaza-browser-feature-enhancement-proposals-v4.md` (the v4.1 draft at that point), `CHANGELOG.md` (v1.2.1 retrospective + v1.3.0 entry), `AGENTS.md` (Versioning section added). Excluded `media/logo.psd` per user request. Short commit message + long annotated tag (HEREDOC) with full v4 summary, security posture, snapshot contents.
 
-**Fix**: rewrote `ServiceCard.tsx` to match chat-plaza's pattern:
-- `useState<string | null>` for the resolved logo path
-- `useEffect` calls `getLogoPath(logoUrl)` first (custom logo), then `fetchFavicon(url)` → `getLogoPath(filename)` (auto-fetch), then falls back to emoji
-- Cancellation flag prevents setState on unmounted components
-- Renders as `<button>` with keyboard support (Enter/Space to navigate)
-- Sets `alt={service.name}` on the image
+Tag: `v1.3.0` (annotated). Pushed to origin. Commit hash: `2871745`.
 
-User then asked to **make the newtab page and workspace popover fully mirror chat-plaza's implementation**. I explored `/home/adhi/Dokumen/projects/chat-plaza` via `shell_command cat` (the `read_file`/`explore` tools block outside the workspace).
+### Phase 4 — v1.3.0 amendment + v4.2
 
-### Phase 6 — Full chat-plaza parity for ServiceCard and popover
-- **`ServiceCard.tsx`**: rewritten to match chat-plaza's `getLogoPath` → `fetchFavicon` → emoji resolution, with `<button>` element and `alt={service.name}`.
-- **`popover.ts`**: rewritten to match chat-plaza's structure. Key additions vs. previous version: emoji+name header row (name input with `input` + `blur` handlers), `bindEvents` extracted from `render`, module-level `workspace` variable, `onSessionRestore` listener for live updates, button relabeled "Manage Services" (was "Manage Shortcuts"). Still calls `manageShortcuts` IPC since the preload method name was already `manageShortcuts` in plaza-browser.
-- **`popover.css`**: added `.popover-header`, `.popover-emoji-input`, `.popover-name-input`, `.popover-header-sep` styles. Added `max-width: 300px` to `.popover`.
+After resolving all open questions (7 in v4 §6), wrote v4.1 simplifications: drop AI panel, drop ChatPlaza items, generalize §19 secret-storage, move §8+§20 to v2.0.0, permissions in both places. Then v4.2: drop right sidebar dock + outline panel, relocate reading list to `about:reading-list`, add settings + about pages, renumber. Two follow-up commits on main (no tags):
+- `d31359f` — v1.3.0 amendment (v4.1 simplifications, expanded CHANGELOG, AGENTS.md per-feature table)
+- `93ccb81` — v4.2 (drop dock + outline, add settings + about pages, reading list to `about:reading-list`, renumber)
+
+User pushed both. Final state on origin main:
+
+```
+93ccb81 docs v4.2: drop right sidebar dock, add settings + about pages, reading list to about:reading-list
+d31359f docs: amend v1.3.0 entry — restore 6 v3 features, 5 caveats, codify versioning
+2871745 v1.3.0 — snapshot v1.2.1 state + v4 enhancement proposal   [tag: v1.3.0]
+c716656 fix release workflow — Windows shell, release notes, and static analysis fixes
+```
 
 ---
 
-## Key Files Modified
+## Final v4.2 Feature Slate (24 features)
 
-### Renderer
-- `src/renderer/src/popover.ts` — full chat-plaza port
-- `src/renderer/src/popover.css` — header styles
-- `src/renderer/src/newtab-react/components/ServiceCard.tsx` — auto-favicon fetch
-- `src/renderer/src/components/SidebarFolder.tsx` — rename/color/delete/close-all actions
-- `src/renderer/src/components/SidebarTab.tsx` — "Move to Group" submenu + "Remove from Group" item
-- `src/renderer/src/components/SidebarFolder.css` — rename input styles
-- `src/renderer/src/store/useStore.ts` — `renameFolder`, `setFolderColor`, `deleteFolder` actions
-- `src/renderer/src/utils/nativeContextMenu.ts` — `submenu` field
-- `src/renderer/src/App.css` — bumped icon sizes (22/18/18 px)
-- `src/renderer/src/env.d.ts` — full preload method declarations
-- `src/renderer/src/index.html` — title fix + CSP `media:`
-- `src/renderer/src/popover.html` — CSP `media:`
-- `src/renderer/src/newtab-react/components/SearchBar.tsx` — removed unused import (env.d.ts backfill side effect)
-- `src/renderer/src/newtab-react/components/SessionsGrid.tsx` — fixed 4-arg `createTab` (env.d.ts backfill side effect)
+### v1.4.0 — Phase 1: Stability, security & engine surfaces (15 features)
 
-### Main process
-- `src/main/index.ts` — register media protocol on default session, set favicon fetcher, register media protocol in app.whenReady before createWindow
-- `src/main/tabManager.ts` — `setFaviconFetcher` method, `scheduleFaviconFetch`/`clearFaviconFetchTimer` private helpers, favicon reset on `did-navigate`, favicon fetch timer cleanup in `closeAllTabs`
-- `src/main/index.ts` — `showNativeContextMenu` recurses on submenu
-- `src/main/index.ts` — `popover:manage-services` handler unchanged
+| § | Feature | Strategy | Complexity |
+| :-- | :-- | :-- | :-- |
+| 13 | Crash recovery and tab restore | Wrap | M |
+| 14 | Favicon disk-cache cleanup | Native | S |
+| 15 | Preload script audit + VideoFrame guard (CVE-2026-34780) | Native | S |
+| 16 | Secret-storage wrapper (safeStorage + Linux fallback) | Native | S |
+| 20 | WebRTC IP-leak protection | Wrap | S |
+| 23 | Dedicated settings page (`about:settings`) | Native | M |
+| 24 | About page (`about:about`) | Native | S |
+| 12 | Local reading list (`about:reading-list`) | Native | M |
+| 3 | Hibernation scheduling | Native | S |
+| 1 | Per-workspace settings (zoom, font, blocker level) | Native | M |
+| 2 | Saved session folders and auto-restore | Native | M |
+| 4 | Workspace popover quick actions | Native | M |
+| 6 | Sidebar workspace search/filter | Native | S |
+| 7 | Hibernated-tab visual polish | Native | S |
+| 5 | Saved tab groups (named, re-openable) | Native | M |
 
-### Preload
-- `src/preload/index.ts` — `showContextMenu` signature now accepts `submenu`
+### v1.5.0 — Phase 2: Privacy quick wins (5 features)
+| § | Feature | Strategy | Complexity |
+| :-- | :-- | :-- | :-- |
+| 17 | Site permissions center | Wrap | M |
+| 19 | DNS over HTTPS (DoH) | Wrap | S |
+| 21 | Reader Mode (`@mozilla/readability`) | Adopt | M |
+| 22 | Archive / Screenshot page actions | Wrap | S |
+| 18 | Content blocker (only if additive — otherwise v2.0.0) | Adopt | M |
+
+### v1.6.0 — Phase 3: Power-user productivity (3 features)
+| § | Feature | Strategy | Complexity |
+| :-- | :-- | :-- | :-- |
+| 9 | Quick Switcher (`Ctrl+K`) | Adopt + Native | M |
+| 10 | Tab search improvements | Adopt | S |
+| 11 | Find in all tabs | Wrap | M |
+
+### v2.0.0 — Phase 4: Heavy lift (1-2 features)
+| § | Feature | Strategy | Complexity |
+| :-- | :-- | :-- | :-- |
+| 8 | Multi-window support | Native refactor | L |
+| 18 | Content blocker (if non-additive) | Adopt | M |
+
+**Effort**: ~13 weeks across 3 minor releases + 1 major. Patch releases between minor versions carry bug fixes only.
+
+---
+
+## Key Architectural Decisions
+
+### `about:` is the canonical internal route scheme
+- `canLoadUrl` (`src/main/index.ts:115`) already accepts `about:`, `http:`, `https:`.
+- New tab-like pages (`newtab.html`, `settings.html`, `about.html`, `reading-list.html`) load via `file://` URLs and present as `about:<name>` in the address bar.
+- Pattern: extend the `about:` branch in `canLoadUrl` to recognize `about:settings`, `about:reading-list`, `about:about`.
+- Implementation mirrors the `resolveNewTabUrl` method in `tabManager.ts:594` (renderer URL in dev, file URL in production).
+
+### Settings page is the canonical home for v4 settings
+Every v4 setting that would otherwise be scattered across popovers and the address bar lives in `about:settings`:
+- Privacy: DoH (§19), WebRTC toggle (§20), secret-storage status (§16), content blocker master switch (§18)
+- Workspace defaults: zoom, font, blocker level (§1)
+- Performance: hibernation policy (§3)
+- Permissions: full origin × permission matrix (§17)
+- About: app info (§24)
+
+### Secret-storage wrapper is generic, not AI-key-specific
+- New `src/main/secretStorage.ts`.
+- Detects `safeStorage.isEncryptionAvailable()` at startup.
+- If unavailable, prompts for OS env-var fallback.
+- **Never** calls `usePlainTextEncryption()` — plaintext on disk exposes keys to anyone with file access.
+- Opt-in per consumer (no key stored until user explicitly enters it).
+- Future consumers: AI API keys when §12 returns, workspace export passwords, sync encryption keys, password manager, etc.
+
+### v2.0.0 = breaking changes only
+Per the codified versioning rule, the major segment is reserved for: `session.json` schema migration, IPC channel renames/removals, preload API shape changes, singleton-to-per-instance refactors.
+- **§8 multi-window** = singleton TabManager → per-window + `windows: WindowState[]` field in `session.json`. Breaking. v2.0.0.
+- **§18 content blocker** = per-partition `webRequest` registration. **TBD during Phase 2 implementation** — if it can be done additively (no `tabManager.ensureTabView` lifecycle hook needed), ships in v1.5.0; otherwise joins §8 in v2.0.0.
+
+---
+
+## Five v3 Caveats Restored as Inline Notes
+
+Per v3-evaluation §8 recommendations. Each v4 feature with a real edge case has the caveat in the table cell:
+
+1. **§14 favicon cleanup** — janitor must not delete logos referenced by other workspaces / saved sessions.
+2. **§18 content blocker** — partition lifecycle: hibernated-tab wake must re-attach the blocker to the new `webContents`. Mirror the `media://` pattern in `protocol.ts`.
+3. **§21 reader mode** — `did-finish-load` is fragile for SPAs. Use `MutationObserver` + word-count threshold. Consider `linkedom` over `jsdom` for bundle size.
+4. **§17 site permissions** — Electron's `setPermissionRequestHandler` cannot be removed once registered (`electron/electron#11057`). Registration order matters. Both `permission:check` and `permission:request` are required.
+5. **§13 crash recovery** — `cleanExit` flag must be set *after* `saveSession()` succeeds, not before.
+
+---
+
+## Files Touched in This Session
 
 ### Docs
-- `AGENTS.md` — full rewrite with accurate codebase documentation
+- `docs/plaza-browser-feature-enhancement-proposals-v4.md` — v4 → v4.1 → v4.2 (rewritten three times; final at `93ccb81`)
+- `CHANGELOG.md` — v1.2.1 retrospective entry + v1.3.0 entry (originally a stub, then amended in `d31359f` to reflect v4.1, then in `93ccb81` to reflect v4.2)
+- `AGENTS.md` — new `## Versioning` section (SemVer table + 5-item release checklist + per-feature v4 version table)
+- `SESSION_RESUME.md` — this file (overwrites the previous v1.2.1 work session)
+
+### No code changes
+- `src/main/*` — untouched
+- `src/preload/*` — untouched
+- `src/renderer/*` — untouched
+- `package.json` — version still `1.2.1` (per checkpoint semantics)
 
 ---
 
 ## Type / Build Status
 
-- `bun run build` ✅ green
-- `tsc --noEmit -p tsconfig.web.json` ✅ clean
-- `tsc --noEmit -p tsconfig.node.json` ⚠️ 6 pre-existing errors in `src/main/index.ts` for `bringPopoverToFront` and `setupTabInputListener` (not introduced by this session — confirmed by git checkout of commit c716656)
+- `bun run build` ✅ green (verified at v1.2.1 baseline, no changes)
+- Working tree clean at end of session
+- v1.3.0 tag exists on origin; no subsequent release tags
 
 ---
 
@@ -118,22 +194,66 @@ User then asked to **make the newtab page and workspace popover fully mirror cha
 - **Match chat-plaza field names, IPC channels, and store actions** for new features (per-feature compat decision)
 - **Use `apple-touch-icon.png` for small icon spots** (sidebar, favicon fallback, workspace strip, newtab hero). `plaza-logo.png` is too large for these.
 - **Prefer updating plaza-browser first**, then propagate to chat-plaza
+- **Adopt/Wrap/Native/Defer reuse policy** — codified in v4 §1
+- **Checkpoint tags mark project moments, not code changes** — v1.3.0 is a checkpoint, code is still v1.2.1
+- **A feature stays on v1.x unless breaking** — codified in AGENTS.md §Versioning
+- **Internal routes use the `about:` scheme** — `about:settings`, `about:reading-list`, `about:about` (mirrors `about:blank` + `newtab.html` file-loading pattern)
+- **Settings page is the canonical home for v4 settings** — no scattering across popovers
+- **Secret-storage wrapper is generic, not consumer-specific** — no speculative consumers
 
 ---
 
 ## Where to Pick Up
 
-1. **Test the live app** — run `bun run dev` and verify: workspace-strip logo renders at 22px, sidebar header at 18px, newtab service cards show real favicons (Google G, YouTube play, etc.), folders can be renamed/colored/deleted from context menu, popover has emoji+name header.
-2. **Tab favicon fetch fallback** — already implemented but only fires for the current tab. Could be extended to prefetch favicons for all pinned tabs.
-3. **The 6 pre-existing TS errors** in `tsconfig.node.json` (`bringPopoverToFront`, `setupTabInputListener`) are not blocking the build but are a hygiene issue worth fixing at some point.
-4. **Chat-plaza rebase** — after this session, `git fetch` + `git rebase` from chat-plaza should produce a near-empty diff for the changed files (proof of strict superset).
-5. **`SessionsGrid` favicon stale-ness** — saved sessions store the favicon URL at save time. If the site changes favicons, the saved session shows the old one. Not the user's current complaint, but a future improvement.
+**v1.4.0 implementation starts here.** The slate is finalized. Before writing code:
+
+1. **Re-read v4 §3.4 carefully.** §23 (settings page) and §24 (about page) are the new engine surfaces; they need scaffold before any setting can live anywhere.
+2. **Order of attack** (suggested, not mandatory):
+   - First: `canLoadUrl` extension to accept `about:settings` / `about:reading-list` / `about:about` (small, unblocks the rest)
+   - Second: §15 preload script audit + `bun run audit:preload` script (mandatory before any new IPC)
+   - Third: §24 about page (simplest, validates the `about:` pattern end-to-end)
+   - Fourth: §23 settings page (scaffolds the home for all subsequent settings)
+   - Fifth: §16 secret-storage wrapper (used by future consumers; build it now)
+   - Then: §13 crash recovery, §14 favicon cleanup, §20 WebRTC, §12 reading list, §3 hibernation, §1, §2, §4, §6, §7, §5
+3. **Open questions to resolve before/during implementation** (from v4 §6):
+   - §18 content blocker v1.5.0 vs v2.0.0 — decision criterion: does `tabManager.ensureTabView` need a new lifecycle hook?
+   - §4 export/import workspace format — version-tag the JSON (`format: 'plaza-workspace/v1'`)?
+   - §3 hibernation default — `off` (safest) or `1h` (friendly)?
+   - §23 settings entry point — workspace strip menu vs. address-bar button vs. both?
+   - §9 Quick Switcher default commands — open vs. closed set?
+4. **Architectural gotchas to remember**:
+   - `media://` protocol registration: must be on both `defaultSession` AND every `persist:${groupId}` partition. Missing either causes 404s in those views. (Pattern fixed in the prior session per the SESSION_RESUME history.)
+   - CSP must include `media:` in `img-src` for any HTML that loads `media://` URLs.
+   - 6 pre-existing TS errors in `tsconfig.node.json` (`bringPopoverToFront`, `setupTabInputListener`) — not introduced by this session but worth fixing eventually.
+   - When implementing `about:settings` etc., the `canLoadUrl` allowlist in `src/main/index.ts:115` is the single chokepoint — extend carefully.
 
 ---
 
 ## Reusable Patterns
 
-- **Auto-favicon fetch in a component**: `useState` for resolved path + `useEffect` with cancellation flag, calling `fetchFavicon` then `getLogoPath` to resolve to a `file://` URL.
-- **Submenu in native context menus**: extend `NativeContextMenuItem` with `submenu: NativeContextMenuItem[]`, recurse in main process's `showNativeContextMenu`. Used by "Change Color" and "Move to Group".
-- **Per-session protocol registration**: register on `session.defaultSession` in `app.whenReady()` for UI/popover views, plus on each `persist:${groupId}` session in `tabManager.ensureTabView` for tab views. Missing either causes 404s in those views.
-- **CSP for custom protocols**: every HTML file using `media://` URLs in `<img>` must have `media:` in the `img-src` directive.
+- **Internal route via `about:` + `file://`**: extend `canLoadUrl` to accept `about:<name>`, implement a `resolveXxxUrl()` method mirroring `tabManager.resolveNewTabUrl` (renderer URL in dev, file URL in production).
+- **Settings page as canonical home**: every new setting gets a row in `about:settings`, not its own popover. Settings React components are siblings in a settings/ subfolder.
+- **Per-partition registration pattern**: any new Chromium-level integration (blocker, permission handler, protocol) needs to be registered on `defaultSession` AND every `persist:${groupId}` partition. Mirror `media://` from `protocol.ts`.
+- **CVE-2026-34780 guard at preload boundary**: comment block at top of `src/preload/index.ts` listing forbidden types + `bun run audit:preload` script that flags them in return-type signatures.
+- **Secret-storage generic wrapper**: `src/main/secretStorage.ts` with `set(consumerId, value)` / `get(consumerId)` / `delete(consumerId)`. Each consumer registers a key prefix. Linux fallback prompts for env-var on first use; no plaintext ever.
+- **Caveat-as-inline-note**: when promoting a v2/v3 caveat forward, put it in the implementation-notes cell of the v4 table, not in a separate appendix. Keeps the constraint next to the feature.
+
+---
+
+## Proposal Audit Trail (v1 → v4.2)
+
+| Aspect | v1 | v2 | v3 | v4 | v4.1 | **v4.2** |
+| :-- | :-- | :-- | :-- | :-- | :-- | :-- |
+| Strategic intent | Firefox/Brave parity | Aligned with v1.2.1 arch | Reuse-first | Engine QoL + ChatPlaza | Engine QoL only | **Engine QoL only** |
+| Features in scope | 25 (1.1–4.3) | 25 (1.1–4.3) | 25 (1.1–4.3) | 28 | 25 | **24** |
+| Items deferred | None explicit | None explicit | None explicit | 5 (Defer mode) | 9 | **11** |
+| Reuse framework | Implicit | Implicit | Adopt/Wrap/Native | + Defer | + Defer | **+ Defer** |
+| ChatPlaza framing | None | None | None | §3.4 + §28 | None | **None** |
+| Settings page | None | None | None | None | None | **§23 (v1.4.x)** |
+| About page | None | None | None | None | None | **§24 (v1.4.x)** |
+| Right sidebar dock | None | None | None | §9 (v1.6.x) | §9 (v1.6.x) | **dropped** |
+| Reading list URL | n/a | n/a | n/a | right sidebar | right sidebar | **`about:reading-list`** |
+| Effort estimate | — | 12 weeks | 12 weeks | 13 weeks | ~15 weeks | **~13 weeks** |
+| Major-version trigger | Not specified | Not specified | Not specified | Not specified | §8 multi-window | **§8 + (conditional) §18** |
+
+v4.2 is the **smallest, most honest, most version-disciplined, most focused** version of the proposal yet. v1.3.0 is the checkpoint that adopts it. v1.4.0 implementation is the next step.
