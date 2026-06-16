@@ -228,7 +228,22 @@ const api = {
     ipcRenderer.invoke('logo:get-path', filename),
 
   fetchFavicon: (url: string): Promise<string | null> =>
-    ipcRenderer.invoke('favicon:fetch', url)
+    ipcRenderer.invoke('favicon:fetch', url),
+
+  getAppInfo: (): Promise<{
+    name: string
+    version: string
+    electron: string
+    chrome: string
+    node: string
+    v8: string
+    platform: string
+    arch: string
+    license: string
+    repoUrl: string
+    releaseNotesUrl: string
+    docsUrl: string
+  }> => ipcRenderer.invoke('app:get-info')
 }
 
 contextBridge.exposeInMainWorld('electron', api)

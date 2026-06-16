@@ -68,17 +68,28 @@ Full per-feature version table lives in `AGENTS.md` §Versioning.
 
 ### Now (active work)
 
-Nothing yet. **Phase 0 is complete.** The first v1.4.0 work item (§15 preload guard, which depends on the 0.3 audit script) is unblocked and can start.
+- **§23 Settings page** — scaffold + empty sections (General, Privacy, Workspace defaults, Performance, Permissions, About). v4.2 §3.4 specifies that every v4 setting lives here, not scattered across popovers. Each section is a separate React component in a new `settings/sections/` subfolder.
 
 ### Next (queued, unstarted)
 
-- **Phase 1 / v1.4.0** — Stability, security, and engine surfaces. 15 features. ~4 weeks of focused work. Order of attack:
-  1. §15 Preload guard (depends on `bun run audit:preload` which landed in 0.3 — now green).
-  2. §20 WebRTC IP-leak fix (one-line `appendSwitch`).
-  3. §24 About page content.
-  4. §23 Settings page (scaffold + empty sections).
-  5. §16 Secret-storage wrapper.
-  6. §13 Crash recovery → §14 favicon cleanup → §12 reading list → §3 hibernation → §1 → §2 → §4 → §6 → §7 → §5.
+- **§16 Secret-storage wrapper** — `src/main/secretStorage.ts`. Generic, opt-in per consumer. No plaintext ever.
+- **§13 Crash recovery** — `cleanExit` flag in `session.json` + `RestoreBanner.tsx` in `App.tsx`.
+- **§14 Favicon disk-cache cleanup** — startup janitor.
+- **§12 Reading list** — IPC channels + `readingList` array in `session.json` + page context menu action.
+- **§3 Hibernation scheduling** — `lastAccessed` on `TabInfo` + 60s interval.
+- **§1 Per-workspace settings** — depends on §23.
+- **§2 Saved session folders + auto-restore**.
+- **§4 Workspace popover quick actions** — Mute All / Close All / Export / Import.
+- **§6 Sidebar workspace search/filter**.
+- **§7 Hibernated-tab visual polish**.
+- **§5 Saved tab groups**.
+
+### Recently shipped (this session)
+
+- ✅ **v1.3.1 (Phase 0 complete)** — Internal `about:` routes, HTML + React scaffolds, CVE-2026-34780 guard via `bun run audit:preload`, Electron version floor pinned at `>=42.4.0`.
+- ✅ **v1.3.2** — First v1.4.0 features land as additive work:
+  - **§20 WebRTC IP-leak fix** — `force-webrtc-ip-handling-policy=default_public_interface_only` applied before `app.whenReady()`.
+  - **§24 About page** — real content via new `app:get-info` IPC. Renders runtime versions (Electron, Chromium, Node, V8), platform/arch, and links to source repo, GitHub Releases, and `AGENTS.md`.
 
 ### Recently shipped (this session)
 
@@ -289,4 +300,4 @@ Material decisions made during roadmap execution. Append-only. Date every entry.
 
 ---
 
-*Last updated: 2026-06-16 — Phase 0 complete (scaffold + audit + Electron floor). v1.4.0 §15 + §20 are unblocked. Next refresh: end of v1.4.0 development.*
+*Last updated: 2026-06-16 — v1.3.2 tagged (§20 WebRTC + §24 About). v1.4.0 §23 (Settings) is now in progress. Next refresh: end of v1.4.0 development.*

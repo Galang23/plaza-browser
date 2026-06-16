@@ -13,6 +13,8 @@ protocol.registerSchemesAsPrivileged([
   { scheme: 'media', privileges: { secure: true, standard: true, supportFetchAPI: true } }
 ])
 
+app.commandLine.appendSwitch('force-webrtc-ip-handling-policy', 'default_public_interface_only')
+
 let uiView: WebContentsView
 let popoverView: WebContentsView | null = null
 let popoverVisible = false
@@ -744,6 +746,21 @@ function setupIPC(win: BaseWindow): () => void {
   })
   handle('logo:get-path', (filename: string) => getLogoPath(filename))
   handle('favicon:fetch', async (url: string) => fetchFaviconForUrl(url))
+
+  handle('app:get-info', () => ({
+    name: app.getName(),
+    version: app.getVersion(),
+    electron: process.versions.electron,
+    chrome: process.versions.chrome,
+    node: process.versions.node,
+    v8: process.versions.v8,
+    platform: process.platform,
+    arch: process.arch,
+    license: 'MIT',
+    repoUrl: 'https://github.com/galang23/plaza-browser',
+    releaseNotesUrl: 'https://github.com/galang23/plaza-browser/releases',
+    docsUrl: 'https://github.com/galang23/plaza-browser/blob/main/AGENTS.md'
+  }))
 
   tabManager.setSavePageAsHandler(savePageAs)
   tabManager.setRendererNotifier(data => sendToRenderer('tabs:updated', data))

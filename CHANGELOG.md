@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [1.3.2] — 2026-06-16
+
+> Second patch on the v1.3.x line. First v1.4.0 features land as additive work on top of the v1.3.1 scaffold. Settings/about/reading-list pages remain stubs (real content lands in v1.4.0 proper).
+
+### Added
+- **WebRTC IP-leak protection** — `app.commandLine.appendSwitch('force-webrtc-ip-handling-policy', 'default_public_interface_only')` applied at startup before `app.whenReady()`. Limits WebRTC IP exposure to the default public interface only. A determined site can still probe WebRTC; this is a hygiene fix, not a complete mitigation.
+- **`app:get-info` IPC + `getAppInfo()` preload method** — Returns `{ name, version, electron, chrome, node, v8, platform, arch, license, repoUrl, releaseNotesUrl, docsUrl }`. Used by the about page; available to any future internal page that needs runtime version info.
+- **About page content** — `about:about` now renders real runtime info: app version, Electron/Chromium/Node/V8 versions, platform/arch, and links to source repo, GitHub Releases (release notes), and `AGENTS.md` docs.
+
+---
+
 ## [1.3.1] — 2026-06-16
 
 > First patch on the v1.3.x line. Lands the Phase 0 engine scaffold from the v4 proposal. No user-visible behavior change (settings/about/reading-list pages render as informational stubs).

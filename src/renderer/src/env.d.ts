@@ -112,6 +112,22 @@ interface ElectronAPI {
   getLogoPath(filename: string): Promise<string>
   fetchFavicon(url: string): Promise<string | null>
 
+  // App info (for the about:about page)
+  getAppInfo(): Promise<{
+    name: string
+    version: string
+    electron: string
+    chrome: string
+    node: string
+    v8: string
+    platform: string
+    arch: string
+    license: string
+    repoUrl: string
+    releaseNotesUrl: string
+    docsUrl: string
+  }>
+
   // Event subscriptions
   onTabsUpdated(
     cb: (data: { tabs: TabInfo[]; activeTabId: string | null; splitState?: SplitState }) => void
