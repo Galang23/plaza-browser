@@ -3,7 +3,7 @@ import type { ContextMenuParams, MenuItemConstructorOptions } from 'electron'
 import { join } from 'path'
 import { pathToFileURL } from 'url'
 import { randomUUID } from 'crypto'
-import type { TabInfo, Workspace, SplitLayout, SplitState, SplitGroup, TabFolder, SavedSession, ReadingListEntry } from '../renderer/src/types'
+import type { TabInfo, Workspace, SplitLayout, SplitState, SplitGroup, TabFolder, SavedSession, ReadingListEntry, HibernationPolicy } from '../renderer/src/types'
 import { registerSessionDownloads } from './downloadManager'
 import { registerMediaProtocol } from './protocol'
 
@@ -22,6 +22,7 @@ interface Tab {
   isCurrentlyAudible: boolean
   isHibernated?: boolean
   folderId?: string
+  lastAccessed: number
 }
 
 interface ClosedTabInfo {
@@ -35,7 +36,7 @@ interface ClosedTabInfo {
 
 export interface SessionData {
   workspaces: Workspace[]
-  tabs: { id?: string; url: string; title: string; groupId: string; userAgent: string; favicon: string; pinned: boolean; folderId?: string }[]
+  tabs: { id?: string; url: string; title: string; groupId: string; userAgent: string; favicon: string; pinned: boolean; folderId?: string; lastAccessed?: number }[]
   activeGroupId: string
   activeTabPerWorkspace: Record<string, string | null>
   sidebarWidth: number
@@ -43,6 +44,7 @@ export interface SessionData {
   tabFolders?: TabFolder[]
   savedSessions?: SavedSession[]
   readingList?: ReadingListEntry[]
+  hibernationPolicy?: HibernationPolicy
   cleanExit?: boolean
 }
 
@@ -207,6 +209,14 @@ export class TabManager {
   private splitState: SplitState = {
     groups: [],
     activeSplitGroupId: null
+  }
+  private hibernationPolicy: HibernationPolicy = 'off'
+  private hibernationTimer: NodeJS.Timeout | null = null
+
+  static readonly HIBERNATION_THRESHOLDS_MS: Record<Exclude<HibernationPolicy, 'off'>, number> = {
+    '5min': 5 * 60 * 1000,
+    '15min': 15 * 60 * 1000,
+    '1h': 60 * 60 * 1000
   }
 
   setWindow(win: BaseWindow): void {
@@ -611,7 +621,8 @@ export class TabManager {
       pinned: false,
       isCrashed: false,
       isUnresponsive: false,
-      isCurrentlyAudible: false
+      isCurrentlyAudible: false,
+      lastAccessed: Date.now()
     }
     this.tabs.set(id, tab)
 
@@ -658,6 +669,7 @@ export class TabManager {
     if (!this.window || this.window.isDestroyed() || this.tabs.size === 0) return
     const tab = this.tabs.get(id)
     if (!tab) return
+    tab.lastAccessed = Date.now()
 
     const targetGroup = this.getSplitGroupForTab(id)
     const activeGroup = this.getActiveSplitGroup()
@@ -783,7 +795,8 @@ export class TabManager {
       pinned: info.pinned,
       isCrashed: false,
       isUnresponsive: false,
-      isCurrentlyAudible: false
+      isCurrentlyAudible: false,
+      lastAccessed: Date.now()
     }
     this.tabs.set(restored.id, restored)
 
@@ -988,6 +1001,7 @@ export class TabManager {
       tabFolders: this.tabFolders,
       savedSessions: this.savedSessions,
       readingList: this.readingList,
+      hibernationPolicy: this.hibernationPolicy,
       cleanExit: false
     }
   }
@@ -1024,7 +1038,8 @@ export class TabManager {
         isCrashed: false,
         isUnresponsive: false,
         isCurrentlyAudible: false,
-        folderId: tabData.folderId
+        folderId: tabData.folderId,
+        lastAccessed: typeof tabData.lastAccessed === 'number' ? tabData.lastAccessed : Date.now()
       }
       this.tabs.set(tab.id, tab)
     }
@@ -1073,6 +1088,9 @@ export class TabManager {
     if (Array.isArray(data.tabFolders)) this.tabFolders = data.tabFolders
     if (Array.isArray(data.savedSessions)) this.savedSessions = data.savedSessions
     if (Array.isArray(data.readingList)) this.readingList = data.readingList as ReadingListEntry[]
+    if (data.hibernationPolicy === 'off' || data.hibernationPolicy === '5min' || data.hibernationPolicy === '15min' || data.hibernationPolicy === '1h') {
+      this.hibernationPolicy = data.hibernationPolicy
+    }
 
     return {
       activeGroupId: groupId,
@@ -1086,6 +1104,17 @@ export class TabManager {
     }
     if (Array.isArray(payload.savedSessions)) {
       this.savedSessions = payload.savedSessions
+    }
+    if (Array.isArray(payload.readingList)) {
+      this.readingList = payload.readingList
+    }
+    if (
+      payload.hibernationPolicy === 'off' ||
+      payload.hibernationPolicy === '5min' ||
+      payload.hibernationPolicy === '15min' ||
+      payload.hibernationPolicy === '1h'
+    ) {
+      this.hibernationPolicy = payload.hibernationPolicy
     }
     if (Array.isArray(payload.tabs)) {
       for (const tabUpdate of payload.tabs) {
@@ -1259,6 +1288,47 @@ export class TabManager {
     tab.view = undefined
     tab.isHibernated = true
     this.notifyRenderer()
+  }
+
+  getHibernationPolicy(): HibernationPolicy {
+    return this.hibernationPolicy
+  }
+
+  setHibernationPolicy(policy: HibernationPolicy): void {
+    if (this.hibernationPolicy === policy) return
+    this.hibernationPolicy = policy
+    this.updateExtraSessionState({ hibernationPolicy: policy })
+    this.startHibernationScheduler()
+  }
+
+  startHibernationScheduler(): void {
+    this.stopHibernationScheduler()
+    if (this.hibernationPolicy === 'off') return
+    this.hibernationTimer = setInterval(() => this.runHibernationTick(), 60_000)
+  }
+
+  stopHibernationScheduler(): void {
+    if (this.hibernationTimer) {
+      clearInterval(this.hibernationTimer)
+      this.hibernationTimer = null
+    }
+  }
+
+  private runHibernationTick(): void {
+    if (this.hibernationPolicy === 'off') return
+    const threshold = TabManager.HIBERNATION_THRESHOLDS_MS[this.hibernationPolicy]
+    const now = Date.now()
+    const activeGroup = this.getActiveSplitGroup()
+    const splitTabIds = new Set(activeGroup?.tabIds ?? [])
+    for (const tab of this.tabs.values()) {
+      if (tab.isHibernated) continue
+      if (tab.id === this.activeTabId) continue
+      if (splitTabIds.has(tab.id)) continue
+      if (tab.pinned) continue
+      if (!tab.url || tab.url === 'about:blank') continue
+      if (now - tab.lastAccessed < threshold) continue
+      this.hibernateTab(tab.id)
+    }
   }
 
   private detachTabView(tab: Tab): void {

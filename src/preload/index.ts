@@ -12,7 +12,7 @@
  */
 
 import { contextBridge, ipcRenderer } from 'electron'
-import type { TabInfo, DownloadInfo, Workspace, SplitState, ShortcutPreset, TabFolder, SavedSession, ReadingListEntry } from '../renderer/src/types'
+import type { TabInfo, DownloadInfo, Workspace, SplitState, ShortcutPreset, TabFolder, SavedSession, ReadingListEntry, HibernationPolicy } from '../renderer/src/types'
 
 const api = {
   createTab: (url: string, groupId: string, userAgent: string): Promise<TabInfo> =>

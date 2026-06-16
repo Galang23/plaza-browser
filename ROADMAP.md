@@ -285,6 +285,7 @@ Material decisions made during roadmap execution. Append-only. Date every entry.
 | 2026-06-16 | v1.3.5 landed: §13 Crash recovery. | `cleanExit` flag in `session.json` (set `true` only after the JSON write succeeds). `RestoreBanner.tsx` on startup when flag is `false`. New `session:restore-crashed` IPC. Catches the v4 §3.3 §13 caveat about a crash during save producing a false "clean exit" reading. |
 | 2026-06-16 | v1.3.6 landed: §14 Favicon disk-cache cleanup. | `src/main/faviconJanitor.ts` — startup janitor scans `custom-logos/` for `favicon_*` files, cross-references tabs + saved sessions + workspace backgrounds + service logos, deletes unreferenced files. User-imported logos out of scope. Honors the SESSION_RESUME caveat: never deletes logos referenced by other workspaces, saved sessions, or global shortcuts. |
 | 2026-06-16 | v1.3.7 landed: §12 Reading list. | `about:reading-list` is a real feature. 4 IPC channels (`reading-list:list` / `:add` / `:remove` / `:mark-read`). `readingList: ReadingListEntry[]` persisted in `session.json`. **Save to Reading List** page context menu action (http(s) only). Real list UI with mark-read + remove buttons. Continue Reading section on the new tab page shows the 6 most-recent unread items as horizontal cards. |
+| 2026-06-16 | v1.3.8 landed: §3 Hibernation scheduling. | `lastAccessed: number` on `Tab` + `TabInfo`. `HibernationPolicy = 'off' \| '5min' \| '15min' \| '1h'`. 60s `setInterval` in `tabManager.runHibernationTick()`. Skips active / split-pane / pinned / `about:blank`. Wake on `switchTab` (existing path). 2 IPC channels. Live dropdown in `about:settings` → Performance. Default `off` per v4 §6 open-question resolution. |
 
 ---
 
@@ -309,5 +310,6 @@ Material decisions made during roadmap execution. Append-only. Date every entry.
 
 ---
 
-*Last updated: 2026-06-16 — v1.3.5 tagged (§13 Crash recovery). v1.4.0 §14 (Favicon cleanup) is now in progress. Next refresh: end of v1.4.0 development.*
+*Last updated: 2026-06-16 — v1.3.8 tagged (§3 Hibernation scheduling). v1.4.0 §1 (Per-workspace settings) is now in progress. Next refresh: end of v1.4.0 development.*
 §14 (Favicon cleanup) is now in progress. Next refresh: end of v1.4.0 development.*
+Next refresh: end of v1.4.0 development.*

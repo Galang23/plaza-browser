@@ -793,6 +793,17 @@ function setupIPC(win: BaseWindow): () => void {
     return tabManager.markReadingListItemRead(id, isRead)
   })
 
+  handle('tab:set-hibernation-policy', (policy: string) => {
+    if (policy !== 'off' && policy !== '5min' && policy !== '15min' && policy !== '1h') {
+      throw new Error('tab:set-hibernation-policy requires off | 5min | 15min | 1h')
+    }
+    tabManager.setHibernationPolicy(policy)
+    saveSession()
+    return tabManager.getHibernationPolicy()
+  })
+
+  handle('tab:get-hibernation-policy', () => tabManager.getHibernationPolicy())
+
   tabManager.setSavePageAsHandler(savePageAs)
   tabManager.setRendererNotifier(data => sendToRenderer('tabs:updated', data))
   tabManager.setFindResultNotifier(result => sendToRenderer('tab:find-result', result))
@@ -814,6 +825,7 @@ app.whenReady().then(() => {
     }
   }).catch((e) => console.error('[secret-storage] init failed:', e))
   createWindow()
+  tabManager.startHibernationScheduler()
 })
 app.on('before-quit', () => { if (!sessionSavedDuringWindowClose) saveSession() })
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit() })

@@ -8,7 +8,9 @@ import type {
   SplitState,
   SplitLayout,
   TabFolder,
-  SavedSession
+  SavedSession,
+  ReadingListEntry,
+  HibernationPolicy
 } from './types'
 
 interface ElectronAPI {
@@ -153,6 +155,10 @@ interface ElectronAPI {
   readingListAdd(input: { url: string; title: string; favicon?: string }): Promise<ReadingListEntry>
   readingListRemove(id: string): Promise<boolean>
   readingListMarkRead(id: string, isRead: boolean): Promise<boolean>
+
+  // Hibernation policy (§3)
+  setHibernationPolicy(policy: HibernationPolicy): Promise<HibernationPolicy>
+  getHibernationPolicy(): Promise<HibernationPolicy>
 
   // Event subscriptions
   onTabsUpdated(

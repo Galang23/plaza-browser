@@ -4,7 +4,31 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [1.3.7] — 2026-06-16
+## [1.3.8] — 2026-06-16
+
+> Eighth patch on the v1.3.x line. §3 hibernation scheduling lands.
+
+### Added
+- **§3 Hibernation scheduling** — auto-hibernate tabs that haven't been active for a configurable interval.
+  - **`lastAccessed: number` on `Tab` (internal) and `TabInfo` (renderer-facing)**. Initialized to `Date.now()` on `createTab` and `restoreClosedTab`, restored from session if present, refreshed in `switchTab`.
+  - **`HibernationPolicy` type** in `src/renderer/src/types.ts`: `'off' | '5min' | '15min' | '1h'`. Threshold table lives in `TabManager.HIBERNATION_THRESHOLDS_MS`.
+  - **`TabManager` methods**: `getHibernationPolicy()`, `setHibernationPolicy(policy)`, `startHibernationScheduler()`, `stopHibernationScheduler()`, private `runHibernationTick()`. The scheduler runs a `setInterval(60_000, ...)` that calls `hibernateTab` on tabs past the threshold.
+  - **Skip rules in `runHibernationTick`**: active tab, split-pane tabs, pinned tabs, and `about:blank` tabs are always skipped (per v4 §3.1 §3).
+  - **Wake on `switchTab`** — the existing `switchTab` path re-creates the `WebContentsView` via `ensureTabView`, which the existing v1.2.1 §3 hibernate-on-close path already supports. No new wake path needed.
+  - **`SessionData.hibernationPolicy?: HibernationPolicy`** field, restored in `restoreSession` and written in `getSessionData`. Default: `'off'`.
+  - **`updateExtraSessionState` extended** to accept `hibernationPolicy` so a single `session:update` IPC persists the change.
+  - **IPC channels**: `tab:set-hibernation-policy` (validates input) and `tab:get-hibernation-policy`. Both reject unknown values.
+  - **Preload methods** + matching `env.d.ts` declarations.
+  - **Performance section in `about:settings`** — now a live dropdown showing the current policy with friendly labels (Off / 5 minutes / 15 minutes / 1 hour). Changes apply immediately. Helper text below explains skip rules.
+  - **Boot wiring** — `tabManager.startHibernationScheduler()` called from `app.whenReady().then(...)` so the scheduler respects the policy loaded from `session.json`.
+
+### Files
+- `src/renderer/src/types.ts` — `lastAccessed?` on `TabInfo`, new `HibernationPolicy` type.
+- `src/renderer/src/env.d.ts` — `HibernationPolicy` import + `setHibernationPolicy` / `getHibernationPolicy` declarations.
+- `src/preload/index.ts` — `HibernationPolicy` import + 2 method implementations.
+- `src/main/index.ts` — 2 IPC handlers + boot call to `startHibernationScheduler()`.
+- `src/main/tabManager.ts` — `lastAccessed` on `Tab` (now required), `hibernationPolicy` field, `HIBERNATION_THRESHOLDS_MS` static table, 5 new methods, extended `updateExtraSessionState`, restored in `restoreSession` and written in `getSessionData`.
+- `src/renderer/src/settings/sections/PerformanceSection.tsx` — live dropdown UI.
 
 > Seventh patch on the v1.3.x line. §12 reading list lands — full feature.
 

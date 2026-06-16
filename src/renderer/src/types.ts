@@ -14,7 +14,10 @@ export interface TabInfo {
   isUnresponsive: boolean
   isHibernated: boolean
   folderId?: string
+  lastAccessed?: number
 }
+
+export type HibernationPolicy = 'off' | '5min' | '15min' | '1h'
 
 export interface TabFolder {
   id: string
