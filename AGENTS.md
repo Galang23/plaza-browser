@@ -1,7 +1,7 @@
 # Memory
 
 ## Project Overview
-Plaza Browser — Electron-based browser with hierarchical workspace + tab management. Version 1.2.1. See @package.json for available scripts. This is the base engine that powers the downstream `chat-plaza` project.
+Plaza Browser — Electron-based browser with hierarchical workspace + tab management. Version 1.3.1. See @package.json for available scripts. This is the base engine that powers the downstream `chat-plaza` project.
 
 ## Vision (re-check periodically)
 
@@ -144,6 +144,8 @@ Each v4 feature in `docs/plaza-browser-feature-enhancement-proposals-v4.md` carr
 ### Security
 - CSP in `index.html`, `newtab.html`, and `popover.html`: `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: file: media:`. The `media:` directive is required for the custom `media://` protocol to load app icons, logos, custom logos, and cached favicons. `https:` is required for tab page favicons and the in-page `page-favicon-updated` URLs.
 - `contextIsolation: true`, `nodeIntegration: false` (Electron defaults)
+- **CVE-2026-34780 guard.** Comment block at the top of `src/preload/index.ts` lists forbidden types (`VideoFrame`, `AudioData`, `ImageBitmap`, `OffscreenCanvas`, `MessagePort`, `ReadableStream`, `WritableStream`, `TransformStream`, `RTCPeerConnection`) and forbids them in any IPC return type or event payload. `bun run audit:preload` (Bun script at `scripts/audit-preload.ts`) walks `src/preload/index.ts` and `src/preload/index.d.ts` and exits non-zero if any forbidden identifier appears in a type position. The audit must be green before any new IPC handler merges.
+- **Electron version floor.** Plaza pins `engines.electron: ">=42.4.0"` in `package.json`. The CVE-2026-34780 patch landed in Electron 39.8.0 / 40.7.0 / 41.0.0-beta.8; Plaza's 42.x line is past the fix. The `engines` field is advisory in bun (it surfaces in `bun install` output) — the authoritative pin is the `electron` devDependency. Never downgrade below 42.4.0.
 - Strict input validation in main:
   - `canLoadUrl()` only allows `http:`, `https:`, `about:`
   - `isSafeWorkspaceId()` / `isSafeId()` regex: `/^[A-Za-z0-9_-]{1,80}$/`

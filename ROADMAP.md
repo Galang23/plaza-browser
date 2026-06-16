@@ -1,6 +1,6 @@
 # Plaza Browser Roadmap
 
-> **Current checkpoint:** v1.3.0 (adopted 2026-06-16) — code remains at v1.2.1; the v4 enhancement proposal is the official plan.
+> **Current checkpoint:** v1.3.0 (adopted 2026-06-16) — v1.3.1 ships the Phase 0 scaffold; the v4 enhancement proposal is the official plan.
 > **Format:** version-anchored phases with a Now / Next / Later overlay at the top.
 > **Status legend:** ✅ Shipped · 🚧 In progress · 📋 Planned · ❌ Dropped / Deferred (parking lot) · ❓ Open question
 
@@ -68,12 +68,24 @@ Full per-feature version table lives in `AGENTS.md` §Versioning.
 
 ### Now (active work)
 
-Nothing yet. v1.3.0 is a documentation-only checkpoint; no code changes are in flight. The first development session after this checkpoint begins **Phase 0** (engine scaffold) as outlined in §5.
+Nothing yet. **Phase 0 is complete.** The first v1.4.0 work item (§15 preload guard, which depends on the 0.3 audit script) is unblocked and can start.
 
 ### Next (queued, unstarted)
 
-- Phase 0 — Engine scaffold (`canLoadUrl` extension, `resolveXxxUrl` mirrors, `audit:preload` script, Electron version floor).
-- Phase 1 / v1.4.0 — Stability, security, and engine surfaces. 15 features. ~4 weeks of focused work after Phase 0 lands.
+- **Phase 1 / v1.4.0** — Stability, security, and engine surfaces. 15 features. ~4 weeks of focused work. Order of attack:
+  1. §15 Preload guard (depends on `bun run audit:preload` which landed in 0.3 — now green).
+  2. §20 WebRTC IP-leak fix (one-line `appendSwitch`).
+  3. §24 About page content.
+  4. §23 Settings page (scaffold + empty sections).
+  5. §16 Secret-storage wrapper.
+  6. §13 Crash recovery → §14 favicon cleanup → §12 reading list → §3 hibernation → §1 → §2 → §4 → §6 → §7 → §5.
+
+### Recently shipped (this session)
+
+- ✅ **Phase 0.1** — `canLoadUrl` extension for `about:settings`, `about:reading-list`, `about:about` (`src/main/index.ts:115`).
+- ✅ **Phase 0.2** — `resolveInternalPageUrl` mirrors on `TabManager` + `isInternalSettingsUrl` / `isInternalReadingListUrl` / `isInternalAboutPageUrl` detection helpers in `src/main/tabManager.ts:67`. Plus three HTML scaffolds (`settings.html`, `about.html`, `reading-list.html`) and matching React entries wired through `electron.vite.config.ts`. `normalizeRuntimeUrl` / `normalizeRestoredUrl` convert the resolved `file://` URL back to its `about:` form for the address bar. All six renderer entry points build clean.
+- ✅ **Phase 0.3** — CVE-2026-34780 guard: comment block at top of `src/preload/index.ts` listing the 9 forbidden types, plus `bun run audit:preload` script (`scripts/audit-preload.ts`) that walks `src/preload/index.ts` + `index.d.ts`, strips strings + comments, and exits non-zero on any forbidden identifier in a type position. Verified clean on the current preload; positive-control test confirmed it catches an injected `Promise<VideoFrame>` return type and ignores string literals containing forbidden names.
+- ✅ **Phase 0.4** — Electron version floor pinned: `engines.electron: ">=42.4.0"` in `package.json`. Plaza is already past the CVE-2026-34780 patch (39.8.0 / 40.7.0 / 41.0.0-beta.8); the `engines` field surfaces the floor in `bun install` output and AGENTS.md documents the CVE lower bounds for future reference.
 
 ### Later (parked)
 
@@ -250,6 +262,9 @@ Material decisions made during roadmap execution. Append-only. Date every entry.
 | 2026-06-16 | Dedicated settings page added as §23 (`about:settings`).                                         | No current home for global settings. Becomes the canonical home for every v4 setting.                                                       |
 | 2026-06-16 | About page added as §24 (`about:about`).                                                          | App version, build date, dependency versions, license, docs links. Pure renderer; no IPC.                                                  |
 | 2026-06-16 | Codified SemVer policy in `AGENTS.md` §Versioning.                                                | Major segment is the breakage flag. Reserved for IPC renames, schema migrations, preload-surface changes, singleton refactors.              |
+| 2026-06-16 | Phase 0.1 + 0.2 landed: `about:settings` / `about:reading-list` / `about:about` routing + 3 HTML scaffolds + React entry stubs. | `INTERNAL_ABOUT_ROUTES` constant + 3 detection helpers in `tabManager.ts:67`; `resolveInternalPageUrl` mirrors `resolveNewTabUrl` (dev server in dev, `file://` in prod). Builds clean across all 6 renderer entry points. Patch release on v1.3.x line. |
+| 2026-06-16 | Phase 0.3 landed: CVE-2026-34780 guard via `bun run audit:preload` (`scripts/audit-preload.ts`) + comment block in `src/preload/index.ts`. | Script strips strings + comments, walks preload + `index.d.ts`, flags the 9 forbidden types (`VideoFrame`, `AudioData`, `ImageBitmap`, `OffscreenCanvas`, `MessagePort`, `ReadableStream`, `WritableStream`, `TransformStream`, `RTCPeerConnection`). Verified clean on current preload; positive-control catches `Promise<VideoFrame>` and ignores string literals. CI gate before any new IPC handler merges. |
+| 2026-06-16 | Phase 0.4 landed: Electron version floor pinned at `>=42.4.0` via `engines.electron` in `package.json`. | Plaza was already past the CVE-2026-34780 patch (39.8.0 / 40.7.0 / 41.0.0-beta.8). The `engines` field is the standard advisory surface; the authoritative pin is the `electron` devDependency. AGENTS.md §Security documents the CVE lower bounds for future reference. |
 
 ---
 
@@ -274,4 +289,4 @@ Material decisions made during roadmap execution. Append-only. Date every entry.
 
 ---
 
-*Last updated: 2026-06-16 — v1.3.0 checkpoint. Next refresh: start of first v1.4.0 development session.*
+*Last updated: 2026-06-16 — Phase 0 complete (scaffold + audit + Electron floor). v1.4.0 §15 + §20 are unblocked. Next refresh: end of v1.4.0 development.*

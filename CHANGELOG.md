@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [1.3.1] — 2026-06-16
+
+> First patch on the v1.3.x line. Lands the Phase 0 engine scaffold from the v4 proposal. No user-visible behavior change (settings/about/reading-list pages render as informational stubs).
+
+### Added
+- **Internal `about:` routes** — `canLoadUrl` accepts `about:settings`, `about:reading-list`, `about:about`. `TabManager.resolveInternalPageUrl(route, params)` resolves them to the dev-server URL in development and `file://` URL in production (mirrors `resolveNewTabUrl`). `INTERNAL_ABOUT_ROUTES` constant + `isInternalSettingsUrl` / `isInternalReadingListUrl` / `isInternalAboutPageUrl` detection helpers in `tabManager.ts:67`. `normalizeRuntimeUrl` / `normalizeRestoredUrl` convert the resolved `file://` URL back to its `about:` form for the address bar; tabs persist their `about:` form in `session.json`.
+- **Settings page scaffold** — `src/renderer/settings.html` + `src/renderer/src/settings/main.tsx` mount a placeholder at `about:settings`. Real sections (General / Privacy / Workspace defaults / Performance / Permissions / About) land in v1.4.0.
+- **About page scaffold** — `src/renderer/about.html` + `src/renderer/src/about/main.tsx` mount a placeholder at `about:about`. Real content (app version, build date, dependency versions, license, docs links) lands in v1.4.0.
+- **Reading list scaffold** — `src/renderer/reading-list.html` + `src/renderer/src/reading-list/main.tsx` mount a placeholder at `about:reading-list`. Real content (saved articles, mark-as-read, **Save to Reading List** context menu) lands in v1.4.0.
+- **Shared `InternalPageStub` component** at `src/renderer/src/shared/InternalPageStub.tsx` — title + route + message display used by all three scaffolds.
+- **CVE-2026-34780 guard at the preload boundary** — Comment block at the top of `src/preload/index.ts` listing the 9 forbidden types (`VideoFrame`, `AudioData`, `ImageBitmap`, `OffscreenCanvas`, `MessagePort`, `ReadableStream`, `WritableStream`, `TransformStream`, `RTCPeerConnection`).
+- **`bun run audit:preload`** — Bun script (`scripts/audit-preload.ts`) that strips strings + comments, walks `src/preload/index.ts` (and `src/preload/index.d.ts` if present), and exits non-zero on any forbidden-type identifier in a type position. The audit must be green before any new IPC handler merges.
+- **Electron version floor** — `engines.electron: ">=42.4.0"` in `package.json`. Plaza is already past the CVE-2026-34780 patch (39.8.0 / 40.7.0 / 41.0.0-beta.8); the `engines` field surfaces the floor in `bun install` output. The authoritative pin is the `electron` devDependency.
+
+### Changed
+- **Vite renderer input entries** — `electron.vite.config.ts` now registers `settings`, `about`, and `reading-list` alongside the existing `index`, `newtab`, and `popover` HTML entry points. All six build clean.
+- **`AGENTS.md` §Security** — Documented the CVE-2026-34780 guard and the Electron version floor.
+- **`AGENTS.md` §Internal Routes** — New section documenting the `about:` scheme pattern, the `resolveInternalPageUrl` mirroring of `resolveNewTabUrl`, and the HTML scaffold + React entry layout.
+
+---
+
 ## [1.3.0] — 2026-06-16
 
 > **Checkpoint release.** Code state remains at v1.2.1. v1.3.0 adopts the v4 enhancement proposal as the official roadmap. v4 features will land as additive minor bumps (v1.4.0, v1.5.0, v1.6.0) as their phases ship. v2.0.0 is reserved for breaking changes (multi-window, content blocker if non-additive, any `session.json` / IPC / preload-surface break).

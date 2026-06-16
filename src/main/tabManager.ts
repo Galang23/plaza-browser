@@ -64,16 +64,40 @@ function normalizeStoredUserAgent(value: unknown): string {
   return typeof value === 'string' ? value.slice(0, 512) : ''
 }
 
+export const INTERNAL_ABOUT_ROUTES = ['about:settings', 'about:reading-list', 'about:about'] as const
+export type InternalAboutRoute = (typeof INTERNAL_ABOUT_ROUTES)[number]
+
 function isInternalNewTabUrl(url: URL): boolean {
   const isFileNewTab = url.protocol === 'file:' && url.pathname.endsWith('/renderer/newtab.html')
   const isDevNewTab = (url.protocol === 'http:' || url.protocol === 'https:') && url.pathname.endsWith('/newtab.html')
   return isFileNewTab || isDevNewTab
 }
 
+function isInternalSettingsUrl(url: URL): boolean {
+  return url.protocol === 'file:' && url.pathname.endsWith('/renderer/settings.html')
+}
+
+function isInternalReadingListUrl(url: URL): boolean {
+  return url.protocol === 'file:' && url.pathname.endsWith('/renderer/reading-list.html')
+}
+
+function isInternalAboutPageUrl(url: URL): boolean {
+  return url.protocol === 'file:' && url.pathname.endsWith('/renderer/about.html')
+}
+
+function isInternalPageUrl(url: URL): boolean {
+  return (
+    isInternalNewTabUrl(url) ||
+    isInternalSettingsUrl(url) ||
+    isInternalReadingListUrl(url) ||
+    isInternalAboutPageUrl(url)
+  )
+}
+
 function normalizeNewTabUrlForStorage(url: string): string {
   try {
     const parsed = new URL(url)
-    if (isInternalNewTabUrl(parsed)) {
+    if (isInternalPageUrl(parsed)) {
       parsed.search = ''
       return parsed.toString()
     }
@@ -81,13 +105,21 @@ function normalizeNewTabUrlForStorage(url: string): string {
   return url
 }
 
-function normalizeRuntimeUrl(url: string): string {
+function runtimeUrlToAboutRoute(url: string): string {
   try {
     const parsed = new URL(url)
-    return isInternalNewTabUrl(parsed) ? 'about:blank' : url
-  } catch {
-    return url
-  }
+    if (isInternalSettingsUrl(parsed)) return 'about:settings'
+    if (isInternalReadingListUrl(parsed)) return 'about:reading-list'
+    if (isInternalAboutPageUrl(parsed)) return 'about:about'
+    if (isInternalNewTabUrl(parsed)) return 'about:blank'
+  } catch { /* invalid URL */ }
+  return ''
+}
+
+function normalizeRuntimeUrl(url: string): string {
+  const aboutRoute = runtimeUrlToAboutRoute(url)
+  if (aboutRoute) return aboutRoute
+  return url
 }
 
 function canRestoreUrl(url: string): boolean {
@@ -96,7 +128,7 @@ function canRestoreUrl(url: string): boolean {
   if (url.startsWith('view-source:')) return canRestoreUrl(url.slice('view-source:'.length))
   try {
     const parsed = new URL(url)
-    return ['http:', 'https:', 'about:'].includes(parsed.protocol) || isInternalNewTabUrl(parsed)
+    return ['http:', 'https:', 'about:'].includes(parsed.protocol) || isInternalPageUrl(parsed)
   } catch {
     return false
   }
@@ -106,6 +138,7 @@ function canOpenUrlInTab(url: string): boolean {
   const trimmed = url.trim()
   if (!trimmed) return false
   if (trimmed === 'about:blank') return true
+  if (INTERNAL_ABOUT_ROUTES.includes(trimmed as InternalAboutRoute)) return true
   if (trimmed.startsWith('view-source:')) return canOpenUrlInTab(trimmed.slice('view-source:'.length))
   try {
     const parsed = new URL(trimmed)
@@ -119,9 +152,11 @@ function normalizeRestoredUrl(value: unknown): string {
   if (typeof value !== 'string') return 'about:blank'
   const url = value.trim()
   if (url === 'about:blank') return 'about:blank'
+  const aboutRoute = runtimeUrlToAboutRoute(url)
+  if (aboutRoute) return aboutRoute
   try {
     const parsed = new URL(url)
-    if (isInternalNewTabUrl(parsed)) return 'about:blank'
+    if (isInternalPageUrl(parsed)) return 'about:blank'
   } catch {
     /* invalid URL, treat as about:blank */
   }
@@ -601,6 +636,18 @@ export class TabManager {
     }
     const sep = base.includes('?') ? '&' : '?'
     return `${base}${sep}${params.toString()}`
+  }
+
+  resolveInternalPageUrl(route: InternalAboutRoute, params: Record<string, string> = {}): string {
+    const fileName =
+      route === 'about:settings' ? 'settings.html'
+      : route === 'about:reading-list' ? 'reading-list.html'
+      : 'about.html'
+    const base = this.rendererUrl
+      ? new URL(fileName, this.rendererUrl).toString()
+      : pathToFileURL(join(__dirname, `../renderer/${fileName}`)).toString()
+    const search = new URLSearchParams(params).toString()
+    return search ? `${base}?${search}` : base
   }
 
   switchTab(id: string): void {
@@ -1677,10 +1724,19 @@ export class TabManager {
     tab.view = view
     this.bindViewEvents(tab)
 
-    const resolvedUrl = (!url || url === 'about:blank')
-      ? this.resolveNewTabUrl(tab.groupId, tab.enabledShortcuts)
-      : url
-    tab.url = normalizeRuntimeUrl(resolvedUrl)
+    let resolvedUrl: string
+    let displayUrl: string
+    if (!url || url === 'about:blank') {
+      resolvedUrl = this.resolveNewTabUrl(tab.groupId, tab.enabledShortcuts)
+      displayUrl = 'about:blank'
+    } else if ((INTERNAL_ABOUT_ROUTES as readonly string[]).includes(url)) {
+      resolvedUrl = this.resolveInternalPageUrl(url as InternalAboutRoute)
+      displayUrl = url
+    } else {
+      resolvedUrl = url
+      displayUrl = normalizeRuntimeUrl(url)
+    }
+    tab.url = displayUrl
     tab.isCrashed = false
     tab.isUnresponsive = false
     tab.isCurrentlyAudible = false

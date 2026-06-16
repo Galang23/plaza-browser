@@ -23,7 +23,10 @@ export default defineConfig({
         input: {
           index: resolve(__dirname, 'src/renderer/index.html'),
           newtab: resolve(__dirname, 'src/renderer/newtab.html'),
-          popover: resolve(__dirname, 'src/renderer/popover.html')
+          popover: resolve(__dirname, 'src/renderer/popover.html'),
+          settings: resolve(__dirname, 'src/renderer/settings.html'),
+          about: resolve(__dirname, 'src/renderer/about.html'),
+          'reading-list': resolve(__dirname, 'src/renderer/reading-list.html')
         }
       }
     }

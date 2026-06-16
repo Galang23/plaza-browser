@@ -6,7 +6,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, unlink
 import { readFile, writeFile } from 'fs/promises'
 import { randomUUID } from 'crypto'
 import { registerMediaProtocol, setLogoResolver } from './protocol'
-import { TabManager, type SessionData } from './tabManager'
+import { TabManager, type SessionData, INTERNAL_ABOUT_ROUTES, type InternalAboutRoute } from './tabManager'
 import { startDownloadTracking, getDownloads, onDownloadsUpdated, offDownloadsUpdated } from './downloadManager'
 
 protocol.registerSchemesAsPrivileged([
@@ -117,6 +117,7 @@ function canLoadUrl(url: string): boolean {
   const trimmed = url.trim()
   if (!trimmed) return false
   if (trimmed === 'about:blank') return true
+  if ((INTERNAL_ABOUT_ROUTES as readonly string[]).includes(trimmed)) return true
   if (trimmed.startsWith('view-source:')) return canLoadUrl(trimmed.slice('view-source:'.length))
   try {
     const parsed = new URL(trimmed)

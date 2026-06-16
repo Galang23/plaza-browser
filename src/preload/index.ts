@@ -1,3 +1,16 @@
+/**
+ * CVE-2026-34780 — contextBridge hardening
+ *
+ * Any value exposed across the contextBridge MUST be JSON-serializable.
+ * The following types are forbidden in IPC return types and event payloads:
+ *
+ *   VideoFrame, AudioData, ImageBitmap, OffscreenCanvas,
+ *   MessagePort, ReadableStream, WritableStream, TransformStream,
+ *   RTCPeerConnection
+ *
+ * Verified clean by `bun run audit:preload`. Do not bypass the audit.
+ */
+
 import { contextBridge, ipcRenderer } from 'electron'
 import type { TabInfo, DownloadInfo, Workspace, SplitState, ShortcutPreset, TabFolder, SavedSession } from '../renderer/src/types'
 
