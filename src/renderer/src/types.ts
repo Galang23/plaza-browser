@@ -31,6 +31,9 @@ export interface SavedSession {
   id: string
   name: string
   tabs: { title: string; url: string; favicon?: string }[]
+  folderId?: string
+  autoRestore?: boolean
+  workspaceId?: string
 }
 
 export type SplitLayout = 'horizontal' | 'vertical' | 'grid'

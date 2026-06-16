@@ -4,7 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [1.3.9] — 2026-06-16
+## [1.3.10] — 2026-06-16
+
+> Tenth patch on the v1.3.x line. §2 saved session folders + auto-restore lands. v1.4.0 minor bump lands after all 15 features ship and ≥1 week of dogfooding.
+
+### Added
+- **§2 Saved session folders + auto-restore**
+  - **`SavedSession` extended** with `folderId?: string`, `autoRestore?: boolean`, `workspaceId?: string` (the workspace the session was saved in).
+  - **`updateSavedSession(id, updates)`** in `useStore` — partial updates persisted via the existing `session:update` IPC.
+  - **`saveSession` now takes the active `workspaceId`** so auto-restore can recreate tabs in the right workspace. `SidebarTab` passes `tab.groupId` when calling it.
+  - **Auto-restore on startup** — `runAutoRestoreSessions()` in `src/main/index.ts` runs after `restoreSession`. Iterates `savedSessions` with `autoRestore: true` and calls `tabManager.createTab` for each tab in the saved session, targeting `session.workspaceId` if it still exists, else the active workspace. Bad URLs are logged and skipped; the loop never crashes the boot path.
+  - **`SessionsGrid` context menu** (right-click any session card) — uses the native `showContextMenu` IPC with **Move to folder…** / **Clear folder** / **Mark auto-restore** / **Restore session** / **Delete session** items. The folder name is collected via an inline input prompt overlay.
+  - **Badges on session cards** — `📁 {folderId}` and `↻ auto-restore` indicators appear above the tab preview when set. A folder summary line shows the distinct folder names above the grid.
+
+### Files
+- `src/renderer/src/types.ts` — 3 new fields on `SavedSession`.
+- `src/renderer/src/store/useStore.ts` — `updateSavedSession` action + `saveSession` accepts `workspaceId`.
+- `src/renderer/src/components/SidebarTab.tsx` — passes `tab.groupId` to `saveSession`.
+- `src/renderer/src/newtab-react/components/SessionsGrid.tsx` — context menu + folder prompt overlay + folder/auto-restore badges.
+- `src/main/index.ts` — `runAutoRestoreSessions()` helper, called once after session restore.
+
+### Notes
+- This release completes the v1.4.0 §2 sub-feature. Other v1.4.0 features (§4, §6, §7, §5) land in subsequent patch releases on the v1.4.x line. The v1.4.0 minor bump is tagged once all 15 v1.4.0 features ship and ≥1 week of dogfooding completes.
 
 > Ninth patch on the v1.3.x line. §1 per-workspace settings lands.
 

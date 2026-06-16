@@ -205,7 +205,7 @@ export function SidebarTab({ tabId }: { tabId: string }) {
       navigator.clipboard.writeText(urls.join('\n'))
     } else if (action === 'save-session') {
       const defaultName = `Session - ${new Date().toLocaleDateString()}`
-      useStore.getState().saveSession(defaultName, selectedTabs.map(t => ({ title: t.title, url: t.url, favicon: t.favicon })))
+      useStore.getState().saveSession(defaultName, selectedTabs.map(t => ({ title: t.title, url: t.url, favicon: t.favicon })), tab.groupId)
     } else if (action === 'close') {
       for (const id of nextSelectedIds) {
         await window.electron.closeTab(id)

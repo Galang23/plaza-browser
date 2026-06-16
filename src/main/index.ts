@@ -60,6 +60,30 @@ function saveSession(): void {
   }
 }
 
+function runAutoRestoreSessions(session: SessionData | null): void {
+  if (!session || !Array.isArray(session.savedSessions)) return
+  const knownWorkspaces = new Set(cachedWorkspaces.map(w => w.id))
+  const fallbackGroupId = cachedActiveGroupId || 'default'
+  for (const saved of session.savedSessions) {
+    if (!saved || saved.autoRestore !== true) continue
+    if (!Array.isArray(saved.tabs) || saved.tabs.length === 0) continue
+    const groupId =
+      typeof saved.workspaceId === 'string' && knownWorkspaces.has(saved.workspaceId)
+        ? saved.workspaceId
+        : fallbackGroupId
+    const workspace = cachedWorkspaces.find(w => w.id === groupId)
+    const userAgent = workspace?.userAgent || ''
+    for (const tab of saved.tabs) {
+      if (!tab || typeof tab.url !== 'string' || !tab.url) continue
+      try {
+        tabManager.createTab(tab.url, groupId, userAgent, workspace?.enabledShortcuts)
+      } catch (err) {
+        console.warn('[auto-restore] failed to create tab', tab.url, err)
+      }
+    }
+  }
+}
+
 function loadSession(): SessionData | null {
   try {
     const raw = readFileSync(sessionPath, 'utf-8')
@@ -548,6 +572,8 @@ function createWindow(): void {
     const activeWs = cachedWorkspaces.find(w => w.id === cachedActiveGroupId)
     tabManager.applyWorkspaceZoom(activeWs)
   }
+
+  runAutoRestoreSessions(session)
 
   uiView.webContents.on('did-finish-load', () => {
     sendToRenderer('session:restore', getSessionRestorePayload())

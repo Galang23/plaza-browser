@@ -68,17 +68,13 @@ Full per-feature version table lives in `AGENTS.md` §Versioning.
 
 ### Now (active work)
 
-- **§2 Saved session folders + auto-restore** — extend existing `savedSessions` with `folderId` and `autoRestore: boolean`. On startup (after `loadSession`), iterate `autoRestore` sessions and call `tabManager.createTab` for each URL in its saved workspace grouping. Add **Move to Folder** + **Mark Auto-Restore** to the `SessionsGrid` context menu.
+- **§4 Workspace popover quick actions** — Mute All / Close All (with replacement `about:blank` tab) / Export Workspace (JSON via `dialog.showSaveDialog`) / Import Workspace (`dialog.showOpenDialog` → `createTab` per URL in active workspace). Add 4 new buttons to `popover.html`.
 
 ### Next (queued, unstarted)
 
-- **§4 Workspace popover quick actions** — Mute All / Close All / Export Workspace / Import Workspace.
-- **§6 Sidebar workspace search/filter** — search input + `<mark>` highlight. Renderer-only.
-- **§7 Hibernated-tab visual polish** — CSS `.sidebar-tab.hibernated` + wake animation.
-- **§5 Saved tab groups** — extend `TabFolder` with `isSavedGroup` + `savedAt`. New `folder:save-as-group` / `folder:open-group` IPC.
-- **§6 Sidebar workspace search/filter**.
-- **§7 Hibernated-tab visual polish**.
-- **§5 Saved tab groups**.
+- **§6 Sidebar workspace search/filter** — search input at the top of `Sidebar.tsx` filters visible tabs by `title` and `url`. Highlight matches with `<mark>` in `SidebarTab.tsx`. `Esc` clears, `Enter` focuses first match. Renderer-only.
+- **§7 Hibernated-tab visual polish** — CSS `.sidebar-tab.hibernated` (opacity 0.55, ❄ `::before` indicator). Wake animation: `@keyframes` fade-in on click. Optional **Wake all hibernated** via `workspace:wake-all` IPC.
+- **§5 Saved tab groups** — extend `TabFolder` with `isSavedGroup: boolean` + `savedAt: number`. New IPC `folder:save-as-group` (marks folder as saved, captures current tab URLs) + `folder:open-group` (recreates tabs in active workspace from the saved URL list). Persist via existing `session:update` channel.
 
 ### Recently shipped (this session)
 

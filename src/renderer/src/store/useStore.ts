@@ -61,7 +61,8 @@ interface AppState {
   setSelectedTabIds: (ids: string[]) => void
   toggleTabSelection: (id: string, additive: boolean) => void
   clearTabSelection: () => void
-  saveSession: (name: string, tabs: { title: string; url: string; favicon?: string }[]) => void
+  saveSession: (name: string, tabs: { title: string; url: string; favicon?: string }[], workspaceId?: string) => void
+  updateSavedSession: (id: string, updates: Partial<SavedSession>) => void
   createFolder: (workspaceId: string, name: string) => string
   toggleFolderCollapse: (folderId: string) => void
   setTabFolder: (tabId: string, folderId: string | undefined) => void
@@ -230,16 +231,27 @@ export const useStore = create<AppState>()((set, get) => ({
       return { selectedTabIds: next }
     }),
   clearTabSelection: () => set({ selectedTabIds: [] }),
-  saveSession: (name, tabs) => {
+  saveSession: (name: string, tabs: { title: string; url: string; favicon?: string }[], workspaceId?: string) => {
     set((state) => {
       const newSession: SavedSession = {
         id: crypto.randomUUID(),
         name,
-        tabs
+        tabs,
+        workspaceId
       }
       const updated = { savedSessions: [...state.savedSessions, newSession] }
       window.electron.updateSessionState({ savedSessions: updated.savedSessions })
       return updated
+    })
+  },
+
+  updateSavedSession: (id: string, updates: Partial<SavedSession>) => {
+    set((state) => {
+      const sessions = state.savedSessions.map((session) =>
+        session.id === id ? { ...session, ...updates } : session
+      )
+      window.electron.updateSessionState({ savedSessions: sessions })
+      return { savedSessions: sessions }
     })
   },
 
