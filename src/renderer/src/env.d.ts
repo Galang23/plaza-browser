@@ -128,6 +128,13 @@ interface ElectronAPI {
     docsUrl: string
   }>
 
+  // Secret-storage status (for the §16 Privacy section)
+  getSecretStorageStatus(): Promise<{
+    backend: 'safeStorage' | 'env-var-fallback' | 'unavailable'
+    available: boolean
+    reason?: string
+  }>
+
   // Event subscriptions
   onTabsUpdated(
     cb: (data: { tabs: TabInfo[]; activeTabId: string | null; splitState?: SplitState }) => void

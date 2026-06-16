@@ -300,4 +300,4 @@ Material decisions made during roadmap execution. Append-only. Date every entry.
 
 ---
 
-*Last updated: 2026-06-16 — v1.3.3 tagged (§23 Settings scaffold). v1.4.0 §16 (Secret-storage) is now in progress. Next refresh: end of v1.4.0 development.*
+*Last updated: 2026-06-16 — v1.3.4 tagged (§16 Secret-storage). v1.4.0 §13 (Crash recovery) is now in progress. Next refresh: end of v1.4.0 development.*

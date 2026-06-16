@@ -243,7 +243,13 @@ const api = {
     repoUrl: string
     releaseNotesUrl: string
     docsUrl: string
-  }> => ipcRenderer.invoke('app:get-info')
+  }> => ipcRenderer.invoke('app:get-info'),
+
+  getSecretStorageStatus: (): Promise<{
+    backend: 'safeStorage' | 'env-var-fallback' | 'unavailable'
+    available: boolean
+    reason?: string
+  }> => ipcRenderer.invoke('secret-storage:get-status')
 }
 
 contextBridge.exposeInMainWorld('electron', api)

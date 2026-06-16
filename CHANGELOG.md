@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [1.3.4] — 2026-06-16
+
+> Fourth patch on the v1.3.x line. §16 secret-storage wrapper lands. Privacy section in `about:settings` now displays the runtime secret-storage backend (OS keyring vs. unavailable).
+
+### Added
+- **§16 Secret-storage wrapper** — `src/main/secretStorage.ts` provides a generic, consumer-agnostic API for any future feature that needs to persist a secret (AI API keys, workspace export passwords, sync encryption keys, etc.). Uses Electron's async `safeStorage` API (Keychain on macOS, DPAPI on Windows, libsecret/kwallet/Portal Secret on Linux). Per v4 §3.3 §16: never calls `usePlainTextEncryption()`; on Linux fallback hosts the wrapper requires the consumer to opt into the env-var fallback by pre-declaring the env var before calling `setSecret()`. Catches the v3-eval §3.1.2 caveat about Electron's hardcoded-plaintext Linux fallback by refusing to use it.
+  - `initSecretStorage()` — called at `app.whenReady()`. Detects availability, creates the `userData/secrets/` directory with `0o700` mode if available, sets the `SecretStorageStatus` once.
+  - `setSecret(consumerId, name, value)` — stores encrypted to disk when safeStorage is available, otherwise requires the env-var opt-in.
+  - `getSecret(consumerId, name)` — decrypts from disk, or reads from the env-var fallback.
+  - `deleteSecret(consumerId, name)` — removes the file or unsets the env var.
+  - `listSecretConsumers()` — returns the distinct consumer IDs that have at least one stored secret.
+  - `getSecretStorageStatus()` — returns `{ backend, available, reason? }` for the settings UI.
+- **`secret-storage:get-status` IPC** — wires the status to the renderer.
+- **`getSecretStorageStatus()` preload method** — exposes the status through the contextBridge.
+- **Privacy section status row** — `about:settings` → Privacy now shows the active backend (OS keyring / env-var fallback / unavailable) with a one-line reason when unavailable.
+
+### Security
+- All file ops use `0o700` for directories and `0o600` for files containing ciphertext.
+- Ciphertext format is `plaza-secret:v1:<safeStorage ciphertext>:v1` — versioned prefix + suffix for forward compat.
+- `consumerId` validated against `/^[A-Za-z0-9_.-]{1,64}$/`, `name` against `/^[A-Za-z0-9_.-]{1,128}$/` — no path-traversal possible.
+
+> Third patch on the v1.3.x line. Settings page scaffold lands. Reading list and about page remain as in v1.3.2 (about has real content; reading list is still a stub).
+
+### Added
+- **Settings page** — `about:settings` now renders the canonical v4 settings home. Six sections, each in its own React component under `src/renderer/src/settings/sections/`: General, Privacy, Workspace defaults, Performance, Permissions, About. A left-rail nav scrolls to each section. Each section renders a placeholder note citing the v4 feature that owns it; controls light up as their features ship.
+- **Shared internal-page styles** — `src/renderer/src/shared/internalPageStyles.ts` exports the consistent card + section + row styling used by both the about and settings pages.
+- **About section in settings** — The settings page's About section embeds the same runtime version + project links as `about:about`, via a slimmed-down version of the about component.
+
+### Changed
+- **About page** refactored to use the new shared styles module. No behavior change.
+
+---
+
 ## [1.3.3] — 2026-06-16
 
 > Third patch on the v1.3.x line. Settings page scaffold lands. Reading list and about page remain as in v1.3.2 (about has real content; reading list is still a stub).

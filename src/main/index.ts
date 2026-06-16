@@ -8,6 +8,7 @@ import { randomUUID } from 'crypto'
 import { registerMediaProtocol, setLogoResolver } from './protocol'
 import { TabManager, type SessionData, INTERNAL_ABOUT_ROUTES, type InternalAboutRoute } from './tabManager'
 import { startDownloadTracking, getDownloads, onDownloadsUpdated, offDownloadsUpdated } from './downloadManager'
+import { initSecretStorage, getSecretStorageStatus } from './secretStorage'
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'media', privileges: { secure: true, standard: true, supportFetchAPI: true } }
@@ -777,6 +778,11 @@ app.whenReady().then(() => {
   startDownloadTracking()
   setLogoResolver(filename => getLogoPath(filename))
   registerMediaProtocol(session.defaultSession, 'default')
+  initSecretStorage().then((status) => {
+    if (!status.available) {
+      console.warn('[secret-storage] Not available:', status.reason)
+    }
+  }).catch((e) => console.error('[secret-storage] init failed:', e))
   createWindow()
 })
 app.on('before-quit', () => { if (!sessionSavedDuringWindowClose) saveSession() })
