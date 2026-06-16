@@ -17,9 +17,11 @@ Plaza Browser — Electron-based browser with hierarchical workspace + tab manag
 
 Plaza follows [SemVer](https://semver.org/) with the conventions used by VS Code, Discord, Slack, Obsidian, and Brave (research: industry consensus is to keep the major segment static for years and reserve it for true breaking changes).
 
+**Rule of thumb:** *a feature stays on v1.x unless it requires breaking IPC changes, `session.json` schema migration, preload-surface changes, or singleton-to-per-instance refactors. Any of those = major bump (v2.0.0).*
+
 | Bump | Triggered by | Examples |
 | :-- | :-- | :-- |
-| **Major (X.0.0)** | Breaking changes to the public surface or persistent state. | `session.json` schema migration (e.g. multi-window adds a `windows: WindowState[]` field). IPC channel renamed or removed. Preload API shape change (downstream `chat-plaza` would break). `TabManager` refactor from singleton to per-window instances. Cut as **v2.0.0**. |
+| **Major (X.0.0)** | Breaking changes to the public surface or persistent state. | `session.json` schema migration (e.g. multi-window adds a `windows: WindowState[]` field). IPC channel renamed or removed. Preload API shape change (downstream `chat-plaza` would break). `TabManager` refactor from singleton to per-window instances. Content blocker if its per-partition registration can't be done additively. Cut as **v2.0.0**. |
 | **Minor (1.X.0)** | Additive features that don't break existing state. | New features from the v4 proposal landing per phase. New IPC channels. New `Workspace` or `TabInfo` fields with safe defaults (existing `session.json` files load unchanged). Content blocker on/off (opt-in). New right-side panels. |
 | **Patch (1.2.X)** | Bug fixes only. | Bug fixes, CVE patches, favicon disk-cache cleanup, UI polish, renderer hardening. |
 
@@ -38,6 +40,15 @@ Before bumping, run through this list:
 5. Otherwise (bug fix, polish, security patch with no API change) → **patch**.
 
 When in doubt, prefer the **lower** bump. The major segment is meant to be rare and meaningful; community trust erodes if it bumps for cosmetic reasons.
+
+### Per-feature versioning for v4
+
+Each v4 feature in `docs/plaza-browser-feature-enhancement-proposals-v4.md` carries a `Version` column. The plan as of v4.2:
+
+- **v1.4.0 (Phase 1 — security, stability & engine surfaces):** §13, §14, §15, §16, §20, §23, §24, §12, §3, §1, §2, §4, §6, §7, §5
+- **v1.5.0 (Phase 2 — privacy quick wins):** §17, §19, §21, §22, plus §18 if it lands additively
+- **v1.6.0 (Phase 3 — power-user productivity):** §9, §10, §11
+- **v2.0.0 (Phase 4 — heavy lift):** §8 multi-window, plus §18 content blocker if it can't land additively in v1.5.0
 
 ## Architecture Notes
 

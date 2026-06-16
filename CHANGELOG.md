@@ -6,14 +6,22 @@ All notable changes to this project will be documented in this file.
 
 ## [1.3.0] — 2026-06-16
 
-> **Checkpoint release.** Code state remains at v1.2.1. v1.3.0 adopts the v4 enhancement proposal as the official roadmap. v4 features will land as additive minor bumps (v1.4.0, v1.5.0, …) as their phases ship. v2.0.0 is reserved for breaking changes (multi-window, session.json schema migration, IPC / preload-surface breaks).
+> **Checkpoint release.** Code state remains at v1.2.1. v1.3.0 adopts the v4 enhancement proposal as the official roadmap. v4 features will land as additive minor bumps (v1.4.0, v1.5.0, v1.6.0) as their phases ship. v2.0.0 is reserved for breaking changes (multi-window, content blocker if non-additive, any `session.json` / IPC / preload-surface break).
 
 ### Planned
-- **Enhancement proposal v4** — Focused QoL slate scoped to engine polish and ChatPlaza readiness. 28 features grouped into: workspace/tab management (8), power-user productivity (7), privacy / stability / security (10), ChatPlaza readiness (3). See `docs/plaza-browser-feature-enhancement-proposals-v4.md`.
-- **Six v3 features restored into v4 scope:** content blocker (opt-in, `@ghostery/adblocker-electron`), DNS over HTTPS, site permissions center, WebRTC IP-leak fix, reader mode (`@mozilla/readability`), and archive / screenshot page actions.
-- **Five v3 caveats restored as inline notes per feature:** content-blocker partition lifecycle, reader-mode SPA heuristic (use MutationObserver not `did-finish-load`), PiP Widevine/DRM caveat (parked, not in v4), auto-updater code-signing prerequisite (parked, not in v4), safeStorage Linux fallback for the AI panel.
+- **Enhancement proposal v4 (v4.2)** — Engine QoL slate scoped to workspace/tab polish, power-user productivity, privacy/stability/security, and engine surfaces. 24 features grouped into: workspace & tab management (8), power-user productivity (4), privacy / stability / security (10), engine surfaces (2). See `docs/plaza-browser-feature-enhancement-proposals-v4.md`.
+- **Six v3 features restored into v4 scope:** content blocker (opt-out, `@ghostery/adblocker-electron`), DNS over HTTPS, site permissions center, WebRTC IP-leak fix, reader mode (`@mozilla/readability`), and archive / screenshot page actions.
+- **Five v3 caveats restored as inline notes per feature:** content-blocker partition lifecycle, reader-mode SPA heuristic (use MutationObserver not `did-finish-load`), PiP Widevine/DRM caveat (parked, not in v4), auto-updater code-signing prerequisite (parked, not in v4), site-permissions Electron handler-unremovable caveat (`electron/electron#11057`).
+- **AI panel and ChatPlaza items dropped from v4** — AI assistant panel (§12 in v3) is deferred indefinitely. Multi-AI session handoff, "Send to Chat" action, and ChatPlaza payload contract (§26–§28 in v3) are dropped; they belong in the downstream `chat-plaza` repo, not the engine.
+- **Right sidebar dock dropped** (§9 in v4.1). The three planned panels (outline, reading list, permissions) have better homes; the dock was the densest integration knot in v4 and the lowest per-user value.
+- **Page outline panel dropped** (§10 in v4.1). Useful for long-form reading, not core to a workspace/tab engine.
+- **Reading list relocated to `about:reading-list`** — new internal route mirroring the `about:` scheme that `canLoadUrl` already accepts and the `newtab.html` file-loading pattern in `tabManager.ts:594`. Reachable from the new tab page's **Continue Reading** section and from the address bar.
+- **Site permissions relocated** — popover anchored to a new **site-info** button next to the address bar (Chrome `🔒` pattern) AND a **Permissions** tab in the new settings page.
+- **Dedicated settings page added** — new `settings.html` reachable at `about:settings` or from a workspace strip menu entry. Hosts every v4 setting that would otherwise be scattered. Lands in v1.4.x.
+- **About page added** — new `about.html` reachable at `about:about` or from a workspace strip menu entry. Shows app version, build date, dependency versions (Electron, Chromium, Node), license, links to docs. Lands in v1.4.x.
+- **Secret-storage wrapper generalized** (§16 in v4.2) — safeStorage Linux fallback plumbing stays in place for future consumers (AI API keys when §12 returns, workspace export passwords, sync encryption keys, etc.) without speculative consumers.
 - **CVE-2026-34780 contextBridge hardening** — Standalone security section in the v4 proposal: preload-script audit, forbidden types list (VideoFrame, AudioData, ImageBitmap, etc.), and a `bun run audit:preload` CI check. Plaza's current preload is not vulnerable; the guard prevents future regressions.
-- **Versioning policy codified** in `AGENTS.md` §Versioning. SemVer: major = breaking change (session.json schema, IPC renames, preload surface, TabManager refactor), minor = additive features, patch = bug fixes and CVE patches. Tracks the Electron SemVer convention.
+- **Versioning policy codified** in `AGENTS.md` §Versioning. SemVer: major = breaking change (session.json schema, IPC renames, preload surface, TabManager refactor), minor = additive features, patch = bug fixes and CVE patches. **New rule:** a feature stays on v1.x unless it requires breaking IPC changes, `session.json` schema migration, preload-surface changes, or singleton-to-per-instance refactors. Tracks the Electron SemVer convention.
 
 ---
 
